@@ -1,4 +1,5 @@
 ---
+description: Launch autonomous loops - plan work, break into tasks, run in background
 hooks:
   PreToolUse:
     - matcher: "*"
