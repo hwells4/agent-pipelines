@@ -1,5 +1,12 @@
 ---
 description: Plan, launch, and monitor autonomous loop agents
+hooks:
+  PreToolUse:
+    - matcher: ""
+      hooks:
+        - type: command
+          command: "${CLAUDE_PLUGIN_ROOT}/skills/loops/scripts/loop-prehook.sh"
+          once: true
 ---
 
 # /loop Command
