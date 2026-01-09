@@ -4,7 +4,7 @@ description: Iteratively refine plans and beads before implementation
 
 # /refine Command
 
-**Optimize planning before work:** Run refinement loops to improve plans and beads.
+**Refinement loops:** Multiple agents review and improve plans and beads before you start implementing.
 
 ## Usage
 
@@ -14,16 +14,7 @@ description: Iteratively refine plans and beads before implementation
 /refine deep             # Thorough pass (8 iterations each)
 /refine plan             # Only refine plans
 /refine beads            # Only refine beads
-```
-
----
-
-## Plugin Path
-
-Scripts are at `.claude/loop-agents/scripts/`:
-```
-loop-engine/run.sh work|improve-plan|refine-beads [session] [max]
-loop-engine/pipeline.sh quick-refine|full-refine|deep-refine [session]
+/refine status           # Check running refinement loops
 ```
 
 ---
@@ -33,6 +24,24 @@ loop-engine/pipeline.sh quick-refine|full-refine|deep-refine [session]
 **The pattern:** "Check your beads N times, implement once"
 
 Planning tokens are cheaper than implementation tokens. Running multiple refinement iterations finds subtle issues that compound into significantly better execution.
+
+### Two Refinement Loops
+
+1. **improve-plan** - Reviews documents in `docs/plans/`
+2. **refine-beads** - Reviews beads for a session
+
+### Stopping Criteria
+
+**Stops when 2 consecutive agents agree the work is done.**
+
+Each agent makes a judgment: `PLATEAU: true/false` with reasoning.
+- If Agent A says `PLATEAU: true` and Agent B also says `PLATEAU: true` → stops
+- If Agent B finds real issues → counter resets, refinement continues
+
+This prevents:
+- Single-agent blind spots
+- Premature stopping
+- Missing subtle issues
 
 ### Pipelines
 
@@ -136,16 +145,45 @@ If the second agent finds real problems, refinement continues.
 
 ---
 
+## Subcommands
+
+### /refine status
+
+```bash
+echo "=== Running Refinement Loops ==="
+tmux list-sessions 2>/dev/null | grep -E "^loop-(refine|improve)" || echo "No refinement loops running"
+
+echo ""
+echo "=== Recent State Files ==="
+for f in .claude/loop-state-*.json; do
+  [ -f "$f" ] || continue
+  session=$(basename "$f" .json | sed 's/loop-state-//')
+  status=$(jq -r '.completed // false' "$f" 2>/dev/null)
+  echo "  $session: completed=$status"
+done
+```
+
+---
+
 ## After Refinement
 
 ```yaml
 question: "Refinement complete. What next?"
 header: "Next"
 options:
-  - label: "Launch work loop"
-    description: "Start implementing with /loop"
+  - label: "Launch work loop (Recommended)"
+    description: "Start implementing with /work"
   - label: "Review changes"
     description: "Look at what was refined"
   - label: "Run another pass"
     description: "Go deeper on refinement"
 ```
+
+---
+
+## When to Use
+
+- **Before implementing new features** - Catch planning issues early
+- **When beads seem unclear** - Improve quality before work
+- **For complex projects** - More refinement = better execution
+- **When fresh eyes help** - Multiple agents catch more issues

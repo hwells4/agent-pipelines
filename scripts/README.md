@@ -1,90 +1,152 @@
 # Loop Scripts
 
-Autonomous execution of multi-step plans with context management.
+Autonomous execution through the universal loop engine.
 
-## Before you start
+## Architecture
 
-Generate your plan and tasks first:
+```
+scripts/
+├── loop-engine/           # Core engine (use this)
+│   ├── engine.sh          # Universal loop runner
+│   ├── run.sh             # Convenience wrapper
+│   ├── pipeline.sh        # Multi-loop sequences
+│   ├── config.sh          # Loop configuration loader
+│   ├── lib/               # Shared utilities
+│   │   ├── state.sh       # State file management
+│   │   ├── progress.sh    # Progress file management
+│   │   ├── notify.sh      # Desktop notifications
+│   │   └── parse.sh       # Output parsing
+│   └── completions/       # Stopping conditions
+│       ├── beads-empty.sh # Stops when no beads remain
+│       ├── plateau.sh     # Stops when 2 agents agree it's done
+│       └── all-items.sh   # Stops when all items processed
+│
+├── loops/                 # Loop type definitions
+│   ├── work/              # Implementation from beads
+│   ├── improve-plan/      # Plan refinement
+│   ├── refine-beads/      # Bead refinement
+│   └── idea-wizard/       # Idea generation
+│
+└── pipelines/             # Multi-loop sequences
+    ├── quick-refine.yaml  # 3+3 iterations
+    ├── full-refine.yaml   # 5+5 iterations
+    └── deep-refine.yaml   # 8+8 iterations
+```
+
+## Usage
+
+### Running Loops
 
 ```bash
-# 1. Define what you're building
-/loop-agents:prd
+PLUGIN_DIR=".claude/loop-agents"
 
-# 2. Break it into executable tasks (creates beads)
-/loop-agents:create-tasks
+# Work loop - implement tasks from beads
+$PLUGIN_DIR/scripts/loop-engine/run.sh work my-feature 25
+
+# Plan refinement - improve docs/plans/
+$PLUGIN_DIR/scripts/loop-engine/run.sh improve-plan my-session 5
+
+# Bead refinement - improve bead quality
+$PLUGIN_DIR/scripts/loop-engine/run.sh refine-beads my-session 5
+
+# Idea generation - brainstorm improvements
+$PLUGIN_DIR/scripts/loop-engine/run.sh idea-wizard ideas 3
 ```
 
-This creates beads tagged `loop/{session-name}` that the loop can execute autonomously.
-
-## How it works
-
-```
-/prd → /create-tasks → beads → loop.sh → Autonomous execution
-```
-
-1. **Plan**: `/loop-agents:prd` defines what you're building
-2. **Tasks**: `/loop-agents:create-tasks` breaks it into beads with acceptance criteria
-3. **Configure**: `prompt.md` contains instructions for how the agent should work
-4. **Run**: `loop.sh` picks a task, implements it, commits, repeats
-5. **Learn**: Progress file accumulates patterns across iterations
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `loop.sh` | Main loop - runs iterations until complete |
-| `loop-once.sh` | Test mode - single iteration |
-| `prompt.md` | Instructions for each iteration |
-
-Progress files are stored in your project at `.claude/loop-progress/progress-{session}.txt`.
-
-## Direct Usage
-
-If running scripts directly (instead of via `/loop-agents:loop`):
+### Running in Background (tmux)
 
 ```bash
-# Test single iteration first
-.claude/loop-agents/scripts/loop-once.sh my-feature
+SESSION_NAME="auth"
+PLUGIN_DIR=".claude/loop-agents"
 
-# Run autonomously (default 25 iterations)
-.claude/loop-agents/scripts/loop.sh 25 my-feature
+# Start work loop in background
+tmux new-session -d -s "loop-$SESSION_NAME" -c "$(pwd)" \
+  "$PLUGIN_DIR/scripts/loop-engine/run.sh work $SESSION_NAME 25"
 
-# Run with custom limit
-.claude/loop-agents/scripts/loop.sh 50 my-feature
+# Monitor
+tmux capture-pane -t "loop-$SESSION_NAME" -p | tail -20
 
-# Check remaining work
-bd ready --label=loop/my-feature
+# Attach (Ctrl+b d to detach)
+tmux attach -t "loop-$SESSION_NAME"
+
+# Kill
+tmux kill-session -t "loop-$SESSION_NAME"
 ```
 
-## Multi-Agent Support
-
-Multiple loops can run simultaneously in separate tmux sessions:
+### Running Pipelines
 
 ```bash
-# Terminal 1: Auth feature
-tmux new-session -d -s "loop-auth" ".claude/loop-agents/scripts/loop.sh 50 auth"
+# Refine plans then beads
+$PLUGIN_DIR/scripts/loop-engine/pipeline.sh full-refine my-session
 
-# Terminal 2: Dashboard feature (parallel)
-tmux new-session -d -s "loop-dashboard" ".claude/loop-agents/scripts/loop.sh 50 dashboard"
+# Quick pass
+$PLUGIN_DIR/scripts/loop-engine/pipeline.sh quick-refine my-session
+
+# Thorough pass
+$PLUGIN_DIR/scripts/loop-engine/pipeline.sh deep-refine my-session
 ```
 
-Each session:
-- Uses its own beads (`loop/auth` vs `loop/dashboard`)
-- Has its own progress file
-- Claims work with `bd update --status=in_progress`
-- No file conflicts
+## Loop Types
 
-## The Loop
+| Type | Stops When | Use Case |
+|------|------------|----------|
+| `work` | All beads complete | Implementing tasks |
+| `improve-plan` | 2 agents agree it's ready | Plan refinement |
+| `refine-beads` | 2 agents agree it's ready | Bead quality |
+| `idea-wizard` | Fixed iterations | Idea generation |
 
-Each iteration:
-1. Agent reads progress file for context
-2. Lists available tasks: `bd ready --label=loop/{session}`
-3. Uses judgment to pick the most logical next task
-4. Claims the task: `bd update <id> --status=in_progress`
-5. Implements and verifies
-6. Commits changes
-7. Closes the task: `bd close <id>`
-8. Updates progress file with learnings
-9. Signals `<promise>COMPLETE</promise>` when `bd ready` returns empty
+## Creating New Loop Types
 
-Fresh context each iteration prevents degradation on long runs.
+```bash
+mkdir -p scripts/loops/my-loop
+```
+
+Create `loop.yaml`:
+```yaml
+name: my-loop
+description: What this loop does
+completion: plateau  # beads-empty, plateau, all-items
+delay: 3
+```
+
+Create `prompt.md`:
+```markdown
+# My Loop Agent
+
+Session: ${SESSION_NAME}
+Progress: ${PROGRESS_FILE}
+
+## Instructions
+...
+```
+
+## Output Files
+
+Progress and state files are created in YOUR project:
+
+```
+.claude/
+├── loop-progress/
+│   └── progress-{session}.txt   # Accumulated learnings
+├── loop-state-{session}.json    # Iteration history
+└── loop-completions.json        # Completion notifications
+```
+
+## Multi-Session Support
+
+Run multiple loops simultaneously:
+
+```bash
+# Different features in parallel
+tmux new-session -d -s "loop-auth" -c "$(pwd)" \
+  "$PLUGIN_DIR/scripts/loop-engine/run.sh work auth 25"
+
+tmux new-session -d -s "loop-api" -c "$(pwd)" \
+  "$PLUGIN_DIR/scripts/loop-engine/run.sh work api 25"
+```
+
+Each session has:
+- Separate beads (`loop/auth` vs `loop/api`)
+- Separate progress file
+- Separate state file
+- No conflicts

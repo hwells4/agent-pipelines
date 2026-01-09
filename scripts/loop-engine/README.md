@@ -7,8 +7,8 @@ Universal loop runner for autonomous agent tasks. Create any iterative workflow 
 ```bash
 # Run a loop
 ./scripts/loop-engine/run.sh work auth 25       # Work loop, "auth" session, 25 max iterations
-./scripts/loop-engine/run.sh refine planning    # Refine loop until plateau
-./scripts/loop-engine/run.sh review security    # Review loop through all reviewers
+./scripts/loop-engine/run.sh improve-plan my-session 5  # Plan refinement until plateau
+./scripts/loop-engine/run.sh refine-beads my-session 5  # Bead refinement until plateau
 
 # See available loops
 ./scripts/loop-engine/run.sh
@@ -29,26 +29,23 @@ scripts/
 │   │   └── parse.sh       # Output parsing
 │   └── completions/
 │       ├── beads-empty.sh # Stop when beads done
-│       ├── plateau.sh     # Stop on diminishing changes
+│       ├── plateau.sh     # Stop on 2 agents agreeing
 │       ├── fixed-n.sh     # Stop after N iterations
-│       ├── all-items.sh   # Iterate through item list
-│       └── findings-plateau.sh  # Stop when findings plateau
+│       └── all-items.sh   # Iterate through item list
 │
 └── loops/                  # Loop type definitions
     ├── work/
     │   ├── loop.yaml      # Config
     │   └── prompt.md      # Agent prompt
-    ├── refine/
+    ├── improve-plan/
     │   ├── loop.yaml
-    │   └── prompts/
-    │       ├── bead-refiner.md
-    │       └── plan-improver.md
-    └── review/
+    │   └── prompt.md
+    ├── refine-beads/
+    │   ├── loop.yaml
+    │   └── prompt.md
+    └── idea-wizard/
         ├── loop.yaml
-        └── prompts/
-            ├── security.md
-            ├── logic.md
-            └── performance.md
+        └── prompt.md
 ```
 
 ## Creating a New Loop Type
@@ -95,10 +92,9 @@ SUMMARY: {text}
 | Strategy | Use Case | Stops When |
 |----------|----------|------------|
 | `beads-empty` | Implementation | No beads remain for session |
-| `plateau` | Refinement | 2+ consecutive low-change rounds |
+| `plateau` | Refinement | 2 consecutive agents agree it's done |
 | `fixed-n` | Batch processing | N iterations complete |
 | `all-items` | Multi-perspective | All items processed |
-| `findings-plateau` | Code review | All items done OR findings plateau |
 
 ## Configuration Options
 

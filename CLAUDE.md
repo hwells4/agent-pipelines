@@ -35,23 +35,25 @@ When using this plugin, the following directories are created in YOUR project:
 
 ## Commands
 
-### Main Workflow
+### Primary Commands
 ```bash
-/loop-agents:loop              # Full workflow: PRD → tasks → launch work loop
-/loop-agents:refine            # Refine planning: improve-plan → refine-beads
+/loop-agents:loop              # Orchestration & management: decide what to do, check status
+/loop-agents:work              # Run work loop: implement tasks from beads
+/loop-agents:refine            # Run refinement loops: improve plans and beads
 /loop-agents:ideate            # Generate improvement ideas (one-shot)
 ```
 
 ### Loop Management
 ```bash
-/loop-agents:loop status       # Check running loops
+/loop-agents:loop status       # Check all running loops
 /loop-agents:loop attach NAME  # Watch live (Ctrl+b, d to detach)
 /loop-agents:loop kill NAME    # Stop a session
+/loop-agents:loop plan         # Plan a new feature (PRD → beads)
 ```
 
-### Individual Skills
+### Supporting Skills
 ```bash
-/loop-agents:prd               # Generate product requirements
+/loop-agents:prd               # Generate product requirements document
 /loop-agents:create-tasks      # Break PRD into beads
 /loop-agents:create-loop       # Scaffold a new loop type
 ```
@@ -75,7 +77,6 @@ The core is a universal loop runner that executes any loop type:
 │   ├── work/              # Implementation from beads
 │   ├── improve-plan/      # Plan refinement
 │   ├── refine-beads/      # Bead refinement
-│   ├── review/            # Code review (security, logic, perf)
 │   └── idea-wizard/       # Idea generation
 │
 └── pipelines/             # Multi-loop sequences
@@ -91,7 +92,6 @@ The core is a universal loop runner that executes any loop type:
 | `work` | Implement tasks from beads | All beads complete |
 | `improve-plan` | Refine planning docs | Two agents agree it's ready |
 | `refine-beads` | Improve bead quality | Two agents agree it's ready |
-| `review` | Multi-perspective code review | All reviewers done or plateau |
 | `idea-wizard` | Generate ideas | Fixed iterations (usually 1) |
 
 ### Intelligent Plateau Detection
@@ -121,20 +121,20 @@ steps:
 ### Typical Flow
 
 ```
-1. /loop-agents:loop
+1. /loop-agents:loop plan (or /loop-agents:prd + /loop-agents:create-tasks)
    ├── Gather context (adaptive questioning)
    ├── Generate PRD → docs/plans/{date}-{slug}-prd.md
-   ├── Create beads tagged loop/{session}
-   └── Launch work loop in tmux
+   └── Create beads tagged loop/{session}
 
-2. Work loop runs autonomously
+2. (Optional) /loop-agents:refine
+   ├── improve-plan loop polishes the PRD
+   └── refine-beads loop improves task definitions
+
+3. /loop-agents:work
+   ├── Launches work loop in tmux
    ├── Each iteration: pick bead → implement → test → commit → close
    ├── Progress accumulates in .claude/loop-progress/
    └── Stops when all beads complete
-
-3. (Optional) /loop-agents:refine before /loop
-   ├── improve-plan loop polishes the PRD
-   └── refine-beads loop improves task definitions
 ```
 
 ### Multi-Session Support

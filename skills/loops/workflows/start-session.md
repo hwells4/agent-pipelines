@@ -10,12 +10,12 @@ Read `references/state-management.md` before proceeding.
 
 Check that the project has required files:
 ```bash
-ls .claude/loop-agents/scripts/loop.sh .claude/loop-agents/scripts/prompt.md 2>/dev/null || echo "MISSING"
+ls .claude/loop-agents/scripts/loop-engine/run.sh .claude/loop-agents/scripts/loops/work/prompt.md 2>/dev/null || echo "MISSING"
 ```
 
 If missing, warn the user:
-- `loop.sh` - The loop runner script
-- `prompt.md` - Instructions for the agent
+- `run.sh` - The loop engine runner script
+- `prompt.md` - Instructions for the work loop agent
 
 ## Step 2: Choose Session Name
 
@@ -45,10 +45,10 @@ PROJECT_PATH="$(pwd)"
 SESSION_TAG="${NAME}"  # e.g., "auth-refactor" from "loop-auth-refactor"
 
 # Start detached session with session name for beads
-tmux new-session -d -s "loop-NAME" -c "$PROJECT_PATH" ".claude/loop-agents/scripts/loop.sh 50 $SESSION_TAG"
+tmux new-session -d -s "loop-NAME" -c "$PROJECT_PATH" ".claude/loop-agents/scripts/loop-engine/run.sh work $SESSION_TAG 50"
 ```
 
-The session name is passed to `loop.sh` so beads are tagged `loop/{session-tag}`.
+The session name is passed to `run.sh` so beads are tagged `loop/{session-tag}`.
 
 ## Step 5: Update State File
 

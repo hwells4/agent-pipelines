@@ -4,21 +4,14 @@ description: Generate creative improvement ideas for the project
 
 # /ideate Command
 
-**Idea generation:** Run the Idea Wizard to generate and evaluate improvement ideas.
+**Idea generation loop:** Agent brainstorms, evaluates, and documents improvement ideas.
 
 ## Usage
 
 ```
 /ideate                  # Generate ideas for current project
 /ideate 3                # Run 3 iterations for more diverse ideas
-```
-
----
-
-## Plugin Path
-
-```
-.claude/loop-agents/scripts/loop-engine/run.sh idea-wizard [session] [iterations]
+/ideate focus "auth"     # Focus ideas on specific area
 ```
 
 ---
@@ -26,6 +19,10 @@ description: Generate creative improvement ideas for the project
 ## What This Does
 
 The Idea Wizard generates improvement ideas across multiple dimensions:
+
+### Stopping Criteria
+
+**Fixed iterations** - Unlike other loops, ideation doesn't plateau-detect. Each iteration produces fresh ideas, reading previous output to avoid duplicates.
 
 1. **Brainstorm 20-30 ideas** covering:
    - User experience & delight
@@ -118,12 +115,12 @@ Ideas are saved to `docs/ideas.md`:
 question: "Ideas generated. What next?"
 header: "Next"
 options:
+  - label: "Turn into beads (Recommended)"
+    description: "Create tasks from best ideas with /loop-agents:create-tasks"
   - label: "Incorporate into plan"
-    description: "Run /refine to add best ideas to plan"
-  - label: "Create beads"
-    description: "Turn ideas into tasks with /loop-agents:create-tasks"
+    description: "Run /refine to add ideas to existing plan"
   - label: "Generate more"
-    description: "Run another ideation pass"
+    description: "Run another ideation pass for more diverse ideas"
 ```
 
 ---

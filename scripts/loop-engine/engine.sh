@@ -13,6 +13,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(pwd)"
 LOOPS_DIR="$SCRIPT_DIR/../loops"
 
+# Verify environment
+if [ ! -d "$LOOPS_DIR" ]; then
+  echo "Error: Loops directory not found: $LOOPS_DIR" >&2
+  echo "Ensure the loop-agents plugin is installed correctly." >&2
+  exit 1
+fi
+
+# Check for required dependencies
+for cmd in bd jq; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "Error: Missing required command: $cmd" >&2
+    case "$cmd" in
+      bd) echo "  Install: brew install steveyegge/tap/bd" >&2 ;;
+      jq) echo "  Install: brew install jq" >&2 ;;
+    esac
+    exit 1
+  fi
+done
+
+# Verify beads is initialized (required for most loops)
+if ! bd list --limit 1 &>/dev/null 2>&1; then
+  echo "Error: Beads not initialized in this project." >&2
+  echo "  Run: bd init" >&2
+  exit 1
+fi
+
 export PROJECT_ROOT SESSION_NAME MAX_ITERATIONS
 
 # Source libraries

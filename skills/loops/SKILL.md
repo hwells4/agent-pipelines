@@ -69,8 +69,14 @@ Use the AskUserQuestion tool with these options:
 
 <quick_commands>
 ```bash
-# Start a loop
-tmux new-session -d -s loop-NAME -c "$(pwd)" "${CLAUDE_PLUGIN_ROOT}/scripts/loop.sh 50 NAME"
+# Start a work loop (use loop-engine)
+PLUGIN_DIR=".claude/loop-agents"
+tmux new-session -d -s loop-NAME -c "$(pwd)" "$PLUGIN_DIR/scripts/loop-engine/run.sh work NAME 50"
+
+# Start other loop types
+$PLUGIN_DIR/scripts/loop-engine/run.sh improve-plan NAME 5 # Plan refinement
+$PLUGIN_DIR/scripts/loop-engine/run.sh refine-beads NAME 5 # Bead refinement
+$PLUGIN_DIR/scripts/loop-engine/run.sh idea-wizard NAME 3  # Idea generation
 
 # Peek at output (safe, doesn't attach)
 tmux capture-pane -t loop-NAME -p | tail -50
@@ -86,7 +92,7 @@ tmux list-sessions 2>/dev/null | grep "^loop-"
 tmux kill-session -t loop-NAME
 
 # Check if complete
-tmux capture-pane -t loop-NAME -p | grep -q "COMPLETE" && echo "Done"
+cat .claude/loop-state-NAME.json | jq '.completed'
 ```
 </quick_commands>
 
