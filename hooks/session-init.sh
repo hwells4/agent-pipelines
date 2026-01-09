@@ -1,9 +1,18 @@
 #!/bin/bash
 # Session initialization for Loop Agents
-# Checks for running/completed loops
+# Creates symlink, checks for running/completed loops
 
 PROJECT_PATH="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+
+# Create symlink to plugin (needed for tmux to find scripts)
+if [ -n "$PLUGIN_ROOT" ]; then
+  mkdir -p "$PROJECT_PATH/.claude"
+  if [ ! -L "$PROJECT_PATH/.claude/loop-agents" ] || [ "$(readlink "$PROJECT_PATH/.claude/loop-agents")" != "$PLUGIN_ROOT" ]; then
+    rm -f "$PROJECT_PATH/.claude/loop-agents" 2>/dev/null
+    ln -sf "$PLUGIN_ROOT" "$PROJECT_PATH/.claude/loop-agents"
+  fi
+fi
 
 # Check for completed loops since last session
 COMPLETIONS_FILE="$PROJECT_PATH/.claude/loop-completions.json"
