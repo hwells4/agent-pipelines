@@ -8,7 +8,7 @@ set -e
 MAX_ITERATIONS=${1:-25}
 SESSION_NAME=${2:-"default"}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(pwd)"  # tmux starts in project directory
 
 # Export for use in prompts
 export SESSION_NAME
@@ -16,6 +16,10 @@ export SESSION_NAME
 # Export for loop-stop-gate.py hook (only activates when these are set)
 export CLAUDE_LOOP_AGENT=1
 export CLAUDE_LOOP_SESSION="$SESSION_NAME"
+
+# Progress files stored in project, not plugin
+PROGRESS_DIR="$PROJECT_ROOT/.claude/loop-progress"
+PROGRESS_FILE="$PROGRESS_DIR/progress-${SESSION_NAME}.txt"
 
 # Record completion status for notification system
 record_completion() {
@@ -53,14 +57,14 @@ record_completion() {
   fi
 }
 
-echo "🤖 Starting Loop Agent (AFK Mode)"
-echo "📊 Max iterations: $MAX_ITERATIONS"
-echo "🏷️  Session: $SESSION_NAME"
-echo "📁 Working directory: $SCRIPT_DIR"
+echo "Starting Loop Agent (AFK Mode)"
+echo "Max iterations: $MAX_ITERATIONS"
+echo "Session: $SESSION_NAME"
+echo "Project: $PROJECT_ROOT"
 echo ""
 
 # Initialize progress file if it doesn't exist
-PROGRESS_FILE="$SCRIPT_DIR/progress-${SESSION_NAME}.txt"
+mkdir -p "$PROGRESS_DIR"
 if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Progress: $SESSION_NAME" > "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
@@ -82,38 +86,37 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   REMAINING=$(bd ready --tag="loop/$SESSION_NAME" 2>/dev/null | grep -c "^" || echo "0")
   if [ "$REMAINING" -eq 0 ]; then
     echo ""
-    echo "✅ All tasks complete!"
-    echo "🎉 Loop agent finished successfully"
+    echo "All tasks complete!"
     record_completion "complete" "$SESSION_NAME"
     exit 0
   fi
 
-  echo "📋 $REMAINING stories remaining"
+  echo "$REMAINING stories remaining"
   echo ""
 
   # Pipe prompt into Claude Code with session context substituted
+  # Use sed to replace both SESSION_NAME and PROGRESS_FILE placeholders
   OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" \
-    | sed "s/\${SESSION_NAME}/$SESSION_NAME/g" \
+    | sed "s|\${SESSION_NAME}|$SESSION_NAME|g" \
+    | sed "s|\${PROGRESS_FILE}|$PROGRESS_FILE|g" \
     | claude --model opus --dangerously-skip-permissions 2>&1 \
     | tee /dev/stderr) || true
 
   # Check for completion signal (backup check)
   if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
     echo ""
-    echo "✅ All tasks complete!"
-    echo "🎉 Loop agent finished successfully"
+    echo "All tasks complete!"
     record_completion "complete" "$SESSION_NAME"
     exit 0
   fi
 
   echo ""
-  echo "⏳ Waiting 3 seconds before next iteration..."
+  echo "Waiting 3 seconds before next iteration..."
   sleep 3
 done
 
 echo ""
-echo "⚠️  Maximum iterations ($MAX_ITERATIONS) reached"
-echo "📝 Check progress-${SESSION_NAME}.txt for status"
-echo "💡 Run with higher limit: ./loop.sh 50 $SESSION_NAME"
+echo "Maximum iterations ($MAX_ITERATIONS) reached"
+echo "Check $PROGRESS_FILE for status"
 record_completion "max_iterations" "$SESSION_NAME"
 exit 1

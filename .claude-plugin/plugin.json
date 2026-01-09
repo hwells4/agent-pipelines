@@ -1,0 +1,22 @@
+{
+  "name": "loop-agents",
+  "description": "Autonomous multi-task execution with context-preserving loops",
+  "version": "1.0.0",
+  "author": {
+    "name": "Harrison Wells",
+    "url": "https://github.com/hwells4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hwells4/loop-agents"
+  },
+  "keywords": [
+    "autonomous",
+    "loop",
+    "multi-task",
+    "context",
+    "beads",
+    "tmux"
+  ]
+}

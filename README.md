@@ -4,79 +4,113 @@ A Claude Code plugin for autonomous multi-task execution.
 
 ## What it is
 
-Loop agents break work into discrete tasks, then execute them one by one in a while loop. Each task runs in a fresh Claude instance.
+An iteration of the [Ralph Wiggum loop](https://ghuntley.com/ralph/) pattern - a while loop that lets AI agents manage context persistently across long-running tasks.
 
-This solves context degradation. A normal Claude session accumulates context until quality drops. A loop agent resets context each iteration, so it can run for hours.
-
-## How it works
-
-1. You describe the work (a feature, a refactor, a build)
-2. An orchestrator breaks it into tasks (10, 20, 50)
-3. A while loop picks up each task, spawns a fresh Claude instance
-4. Quality checks run between iterations
-5. Progress accumulates in a file that persists across iterations
-
-## Requirements
-
-- **beads** - Task management CLI. Install from [github.com/hwells4/beads](https://github.com/hwells4/beads)
-- **tmux** - Terminal multiplexer (`brew install tmux`)
-- **Claude Code** - Anthropic's CLI
+**What's different here:**
+- **Claude Code is the orchestrator** - Just describe your work and Claude handles planning, task breakdown, and loop management
+- **tmux sessions** - Loops run in the background; Claude can spin up several with their own tasks and dependencies without clogging your terminal
+- **Attach/detach** - Claude can attach to running loops, monitor progress, or kill them - all from your normal session
+- **Notifications** - Desktop alerts (macOS/Linux) when loops complete
 
 ## Installation
 
-Copy `.claude/` and `scripts/` to your project, or symlink them.
+```bash
+# Add the marketplace
+/plugin marketplace add hwells4/loop-agents
+
+# Install the plugin
+/plugin install loop-agents
+```
+
+Or install directly from GitHub:
 
 ```bash
-# Option 1: Copy
-cp -r loop-agents/.claude your-project/
-cp -r loop-agents/scripts your-project/
-
-# Option 2: Symlink (if you want updates)
-ln -s /path/to/loop-agents/.claude your-project/.claude
-ln -s /path/to/loop-agents/scripts your-project/scripts
+/plugin install github:hwells4/loop-agents
 ```
+
+## Dependencies
+
+Before running `/loop`, Claude will check that these are installed:
+
+- **[tmux](https://github.com/tmux/tmux)** - Terminal multiplexer for background execution
+  ```bash
+  brew install tmux        # macOS
+  apt install tmux         # Linux
+  ```
+
+- **[beads](https://github.com/steveyegge/beads)** - Task management CLI for coding agents
+  ```bash
+  brew install steveyegge/tap/bd
+  ```
 
 ## Usage
 
-```bash
-# 1. Create a plan
-/prd
-
-# 2. Break it into tasks
-/generate-stories
-
-# 3. Run the loop
-/loop start
-```
-
-The `/loop` command manages tmux sessions:
+Run `/loop` to manage loops through Claude:
 
 ```bash
-/loop start     # Plan + start a loop
-/loop list      # See running loops
-/loop attach    # Watch a loop live
-/loop status    # Quick health check
-/loop kill      # Stop a loop
+/loop              # Start the orchestrator - plan work and launch a loop
+/loop start        # Start a loop (after planning)
+/loop list         # See running loops
+/loop attach       # Watch a loop live (Ctrl+b, d to detach)
+/loop status       # Quick health check
+/loop kill         # Stop a loop
 ```
 
-## Files
+Or just talk to Claude naturally:
 
 ```
-.claude/
-  commands/loop.md          # /loop command
-  hooks/loop-stop-gate.py   # Ensures tests pass before stopping
-  settings.json             # Hook configuration
-  skills/
-    generate-prd/           # Creates planning documents
-    generate-stories/       # Breaks plans into tasks
-    run-loop/               # Manages tmux sessions
-
-scripts/loop/
-  loop.sh                   # Main while loop
-  loop-once.sh              # Test single iteration
-  prompt.md                 # Instructions for each iteration
+"I want to add user authentication to this app"
+"Check on my running loops"
+"Attach to the auth loop"
 ```
+
+## How it works
+
+Run /loop and tell Claude what you're working on. It will:
+
+1. Gather context about what you're building
+2. Generate a PRD and breaks it into discrete tasks
+3. Spin up a tmux session running a while loop
+4. Each iteration: fresh Claude instance picks a task, implements it, commits, updates progress
+5. Send a system notification when the full loop is complete
+
+The loop runs in the background, seperate from your active claude code session. You can ask Claude to check on it, attach to watch live, or spin up more loops for parallel work. If Claude Code crashes during a run, your loop will still be active! Just ask claude to reconnect to it.
+
+```
+You describe work → Claude plans → Claude spawns tmux loop → Fresh Claude per task → You get notified
+```
+
+## Multi-Loop Support
+
+Claude can manage multiple loops simultaneously. Each runs in its own tmux session with its own tasks and progress file.
+
+Ask Claude to start a second feature while the first is running - they won't conflict.
+
+## Notifications
+
+When a loop completes or hits max iterations:
+- **macOS**: Native notification center
+- **Linux**: `notify-send` (install `libnotify` if missing)
+
+Completion events are also logged to `.claude/loop-completions.json`.
+
+## How Progress is Stored
+
+Progress files are stored in your project (not the plugin):
+
+```
+your-project/
+└── .claude/
+    └── loop-progress/
+        └── progress-{session-name}.txt
+```
+
+Each iteration appends learnings. Fresh Claude instances read this to maintain context without degradation.
 
 ## Limitations
 
-Loops run on your machine. If your computer sleeps, they pause. This isn't remote execution.
+- Tmux sessions are local, so if your computer sleeps, they pause. Use caffiene or antoher system to keep your computer running for async work.
+
+## License
+
+MIT

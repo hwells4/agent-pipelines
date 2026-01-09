@@ -4,7 +4,7 @@ hooks:
     - matcher: "*"
       hooks:
         - type: command
-          command: bash .claude/skills/run-loop/scripts/loop-prehook.sh
+          command: bash ${CLAUDE_PLUGIN_ROOT}/skills/run-loop/scripts/loop-prehook.sh
           once: true
 ---
 
@@ -150,7 +150,7 @@ options:
 SESSION_NAME="{from phase 4}"
 ITERATIONS="{from phase 5, default 15}"
 
-tmux new-session -d -s "loop-$SESSION_NAME" -c "$(pwd)" "./scripts/loop/loop.sh $ITERATIONS $SESSION_NAME"
+tmux new-session -d -s "loop-$SESSION_NAME" -c "$(pwd)" ".claude/loop-agents/scripts/loop.sh $ITERATIONS $SESSION_NAME"
 ```
 
 **Show confirmation:**
@@ -223,6 +223,6 @@ tmux kill-session -t loop-NAME
 Multiple loops run simultaneously with separate beads and progress files:
 
 ```bash
-tmux new-session -d -s "loop-auth" "./scripts/loop/loop.sh 15 auth"
-tmux new-session -d -s "loop-dashboard" "./scripts/loop/loop.sh 15 dashboard"
+tmux new-session -d -s "loop-auth" ".claude/loop-agents/scripts/loop.sh 15 auth"
+tmux new-session -d -s "loop-dashboard" ".claude/loop-agents/scripts/loop.sh 15 dashboard"
 ```

@@ -1,0 +1,15 @@
+{
+  "name": "loop-agents-marketplace",
+  "owner": {
+    "name": "Harrison Wells",
+    "url": "https://github.com/hwells4"
+  },
+  "plugins": [
+    {
+      "name": "loop-agents",
+      "source": ".",
+      "description": "Autonomous multi-task execution with context-preserving loops",
+      "version": "1.0.0"
+    }
+  ]
+}

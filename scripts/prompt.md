@@ -3,13 +3,13 @@
 ## Context
 
 Session: ${SESSION_NAME}
-Progress file: scripts/loop/progress-${SESSION_NAME}.txt
+Progress file: ${PROGRESS_FILE}
 
 ## Workflow
 
 1. **Read progress file** for accumulated context and patterns:
    ```bash
-   cat scripts/loop/progress-${SESSION_NAME}.txt
+   cat ${PROGRESS_FILE}
    ```
 
 2. **List available stories** for this session:
