@@ -31,7 +31,8 @@ scripts/
 │       ├── beads-empty.sh # Stop when beads done
 │       ├── plateau.sh     # Stop on diminishing changes
 │       ├── fixed-n.sh     # Stop after N iterations
-│       └── all-items.sh   # Iterate through item list
+│       ├── all-items.sh   # Iterate through item list
+│       └── findings-plateau.sh  # Stop when findings plateau
 │
 └── loops/                  # Loop type definitions
     ├── work/
@@ -97,6 +98,7 @@ SUMMARY: {text}
 | `plateau` | Refinement | 2+ consecutive low-change rounds |
 | `fixed-n` | Batch processing | N iterations complete |
 | `all-items` | Multi-perspective | All items processed |
+| `findings-plateau` | Code review | All items done OR findings plateau |
 
 ## Configuration Options
 
