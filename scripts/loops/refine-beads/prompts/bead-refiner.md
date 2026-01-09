@@ -1,57 +1,81 @@
 # Bead Refinement Iteration
 
 Session: ${SESSION_NAME}
+Progress file: ${PROGRESS_FILE}
 Iteration: ${ITERATION}
 
 ## Your Task
 
-You are a meticulous planning reviewer. Your job is to carefully examine each bead and improve its quality.
+You are a meticulous planning reviewer. Examine each bead and improve its quality.
 
-1. **Load context** - Read AGENTS.md and any relevant architecture docs
-2. **List all beads** for this session:
-   ```bash
-   bd list --label=loop/${SESSION_NAME}
-   ```
-3. **For each bead**, check:
-   - Is the title clear and actionable?
-   - Is the description specific enough to implement?
-   - Are acceptance criteria testable and complete?
-   - Are dependencies correctly set up?
-   - Is the scope right-sized (not too big, not too small)?
+### Step 1: Load Context
 
-4. **Make improvements** using bd update commands:
-   ```bash
-   bd update <id> --description="..." --acceptance="..."
-   ```
-
-5. **Add missing beads** if you discover gaps:
-   ```bash
-   bd create --title="..." --type=task --priority=2 --add-label="loop/${SESSION_NAME}"
-   ```
-
-6. **Fix dependencies** if needed:
-   ```bash
-   bd dep add <issue> <depends-on>
-   ```
-
-## Quality Standards
-
-- Each bead should be implementable in 15-60 minutes
-- Acceptance criteria should be verifiable (testable)
-- Dependencies should reflect actual blocking relationships
-- Titles should start with a verb (Create, Implement, Add, Fix)
-
-## Output Requirements
-
-Count your changes and output at the END of your response:
-
-```
-CHANGES: {number of updates/creates/deletes made}
-SUMMARY: {one-line summary of what you improved}
+Read progress file and architecture docs:
+```bash
+cat ${PROGRESS_FILE}
+cat AGENTS.md 2>/dev/null || echo "No AGENTS.md"
 ```
 
-If you made no changes because everything looks good:
+### Step 2: List All Beads
+
+```bash
+bd list --label=loop/${SESSION_NAME}
 ```
-CHANGES: 0
-SUMMARY: All beads meet quality standards
+
+### Step 3: Review Each Bead
+
+For each bead, check:
+- **Title:** Clear, actionable, starts with a verb?
+- **Description:** Specific enough to implement without guessing?
+- **Acceptance criteria:** Testable and complete?
+- **Dependencies:** Correctly set up? Missing any?
+- **Scope:** Right-sized (15-60 min of work)?
+
+### Step 4: Make Improvements
+
+```bash
+# Update existing beads
+bd update <id> --description="..." --acceptance="..."
+
+# Add missing beads
+bd create --title="..." --type=task --priority=2 --add-label="loop/${SESSION_NAME}"
+
+# Fix dependencies
+bd dep add <issue> <depends-on>
 ```
+
+### Step 5: Update Progress
+
+Append to progress file:
+```
+## Iteration ${ITERATION} - Bead Refinements
+- [What you changed]
+- [Why you changed it]
+```
+
+### Step 6: Plateau Decision
+
+At the END of your response, make an intelligent judgment:
+
+```
+PLATEAU: true/false
+REASONING: [Your reasoning for why work should continue or stop]
+```
+
+**Answer true (stop) if:**
+- All beads have clear, actionable titles
+- Descriptions are specific enough to implement
+- Acceptance criteria are testable
+- Dependencies are correct
+- Remaining improvements are cosmetic (wording tweaks, style)
+- The beads are ready for a work loop to execute
+
+**Answer false (continue) if:**
+- You found beads that are too vague to implement
+- Missing acceptance criteria on important beads
+- Dependency structure has gaps or errors
+- Scope issues (beads too big or too small)
+- You made significant changes that need verification
+
+The goal is beads that an agent can pick up and implement confidently.
+Not perfect documentation—*implementable tasks*.

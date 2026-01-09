@@ -72,23 +72,26 @@ Append to progress file:
 - [Why you changed it]
 ```
 
-### Step 5: Output Summary
+### Step 5: Plateau Decision
 
-At the END of your response, output exactly:
-```
-CHANGES: {number of distinct improvements made}
-SUMMARY: {one-line summary of what you improved}
-```
+At the END of your response, make an intelligent judgment:
 
-If the plan is solid and needs no changes:
 ```
-CHANGES: 0
-SUMMARY: Plan is comprehensive and ready
+PLATEAU: true/false
+REASONING: [Your reasoning for why work should continue or stop]
 ```
 
-## Guidelines
+**Answer true (stop) if:**
+- Remaining issues are cosmetic, not substantive (unused imports, minor style)
+- You're finding the same types of issues repeatedly
+- The plan is "good enough" to implement successfully
+- Further iterations would be diminishing returns
 
-- Make substantive improvements, not cosmetic ones
-- If you find yourself making tiny tweaks, the plan may be ready
-- Don't add complexity for its own sake
-- Focus on clarity and completeness
+**Answer false (continue) if:**
+- You found significant gaps or errors that need fixing
+- There are architectural issues that need another pass
+- The plan isn't clear enough to implement confidently
+- You made substantial changes that might have introduced new issues
+
+Be honest. Don't stop early just to finish faster. Don't continue just to seem thorough.
+The goal is a plan that's *ready to implement*, not *perfect*.

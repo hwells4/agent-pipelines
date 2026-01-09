@@ -1,39 +1,28 @@
 #!/bin/bash
-# Completion strategy: plateau
-# Returns 0 (complete) when changes plateau (2+ consecutive low-change rounds)
-
-# Config (can be overridden by loop.yaml)
-PLATEAU_THRESHOLD=${PLATEAU_THRESHOLD:-2}
-MIN_ITERATIONS=${MIN_ITERATIONS:-3}
-LOW_CHANGE_MAX=${LOW_CHANGE_MAX:-1}
+# Completion strategy: plateau (intelligent)
+# Agent decides when work has plateaued, not the engine
 
 check_completion() {
   local session=$1
   local state_file=$2
   local output=$3
 
-  # Get current iteration
-  local iteration=$(get_state "$state_file" "iteration")
+  # Parse agent's plateau decision from output
+  local plateau=$(echo "$output" | grep -i "^PLATEAU:" | head -1 | cut -d: -f2 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+  local reasoning=$(echo "$output" | grep -i "^REASONING:" | head -1 | cut -d: -f2-)
 
-  # Don't check plateau until minimum iterations reached
-  if [ "$iteration" -lt "$MIN_ITERATIONS" ]; then
-    return 1
+  if [ "$plateau" = "true" ] || [ "$plateau" = "yes" ]; then
+    echo "Agent determined plateau: $reasoning"
+    return 0
   fi
 
-  # Get history and check for plateau
-  local history=$(get_history "$state_file")
+  # Fallback: check iteration count against min_iterations
+  local iteration=$(get_state "$state_file" "iteration")
+  local min=${MIN_ITERATIONS:-3}
 
-  if command -v jq &> /dev/null; then
-    # Get last N changes values
-    local recent_changes=$(echo "$history" | jq -r "[.[-${PLATEAU_THRESHOLD}:][].changes // 999] | map(tonumber)")
-
-    # Check if all recent changes are <= LOW_CHANGE_MAX
-    local all_low=$(echo "$recent_changes" | jq "all(. <= $LOW_CHANGE_MAX)")
-
-    if [ "$all_low" = "true" ]; then
-      echo "Plateau detected at iteration $iteration"
-      return 0
-    fi
+  if [ "$iteration" -lt "$min" ]; then
+    # Haven't hit minimum yet, keep going regardless
+    return 1
   fi
 
   return 1

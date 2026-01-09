@@ -1,11 +1,7 @@
 #!/bin/bash
-# Completion strategy: findings-plateau
-# Stops when new findings plateau (good for review loops)
-# Combines all-items iteration with plateau detection on findings
-
-# Config
-FINDINGS_PLATEAU_THRESHOLD=${FINDINGS_PLATEAU_THRESHOLD:-2}
-MIN_FINDINGS_ITERATIONS=${MIN_FINDINGS_ITERATIONS:-2}
+# Completion strategy: findings-plateau (intelligent)
+# For review loops - agent decides when findings are sufficient
+# Iterates through items but can stop early if agent says so
 
 check_completion() {
   local session=$1
@@ -23,28 +19,19 @@ check_completion() {
     fi
   fi
 
-  # Then check for findings plateau (only after min iterations)
-  if [ "$iteration" -ge "$MIN_FINDINGS_ITERATIONS" ]; then
-    local history=$(get_history "$state_file")
+  # Check if agent says to stop early
+  local plateau=$(echo "$output" | grep -i "^PLATEAU:" | head -1 | cut -d: -f2 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+  local reasoning=$(echo "$output" | grep -i "^REASONING:" | head -1 | cut -d: -f2-)
 
-    if command -v jq &> /dev/null; then
-      # Get last N findings counts
-      local recent_findings=$(echo "$history" | jq -r "[.[-${FINDINGS_PLATEAU_THRESHOLD}:][].findings // \"0\"] | map(tonumber)")
-
-      # Check if all recent findings are 0 or very low
-      local all_low=$(echo "$recent_findings" | jq "all(. <= 1)")
-
-      if [ "$all_low" = "true" ]; then
-        echo "Findings plateaued at iteration $iteration - no significant new issues found"
-        return 0
-      fi
-    fi
+  if [ "$plateau" = "true" ] || [ "$plateau" = "yes" ]; then
+    echo "Agent determined review sufficient: $reasoning"
+    return 0
   fi
 
   return 1
 }
 
-# Get current item from list (same as all-items)
+# Get current item from list
 get_current_item() {
   local iteration=$1
   echo "$ITEMS" | cut -d' ' -f$((iteration + 1))
