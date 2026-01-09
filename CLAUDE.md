@@ -53,9 +53,9 @@ When using this plugin, the following directories are created in YOUR project:
 
 ### Supporting Skills
 ```bash
-/loop-agents:prd               # Generate product requirements document
+/loop-agents:create-prd        # Generate product requirements document
 /loop-agents:create-tasks      # Break PRD into beads
-/loop-agents:create-loop       # Scaffold a new loop type
+/loop-agents:build-loop        # Scaffold a new loop type
 ```
 
 ## Architecture
@@ -121,7 +121,7 @@ steps:
 ### Typical Flow
 
 ```
-1. /loop-agents:loop plan (or /loop-agents:prd + /loop-agents:create-tasks)
+1. /loop-agents:loop plan (or /loop-agents:create-prd + /loop-agents:create-tasks)
    ├── Gather context (adaptive questioning)
    ├── Generate PRD → docs/plans/{date}-{slug}-prd.md
    └── Create beads tagged loop/{session}
