@@ -35,8 +35,8 @@ if [ "$LOOP_SESSIONS" -gt 0 ]; then
   echo "  Attach: tmux attach -t SESSION"
 
   # Check for stale sessions (>2 hours)
-  if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/skills/run-loop/scripts/warn-stale.sh" ]; then
-    bash "$PLUGIN_ROOT/skills/run-loop/scripts/warn-stale.sh"
+  if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh" ]; then
+    bash "$PLUGIN_ROOT/skills/loops/scripts/warn-stale.sh"
   fi
 fi
 

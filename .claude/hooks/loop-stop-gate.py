@@ -1,1 +1,0 @@
-../../hooks/loop-stop-gate.py

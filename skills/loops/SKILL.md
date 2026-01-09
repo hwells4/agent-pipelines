@@ -1,5 +1,5 @@
 ---
-name: run-loop
+name: loops
 description: Manage autonomous loop agents in tmux sessions. Spin up, monitor, attach, detach, and manage multiple concurrent loop executions. Use when running long autonomous tasks that should persist in the background.
 ---
 
@@ -70,7 +70,7 @@ Use the AskUserQuestion tool with these options:
 <quick_commands>
 ```bash
 # Start a loop
-tmux new-session -d -s loop-NAME -c "$(pwd)" './scripts/loop/loop.sh 50'
+tmux new-session -d -s loop-NAME -c "$(pwd)" "${CLAUDE_PLUGIN_ROOT}/scripts/loop.sh 50 NAME"
 
 # Peek at output (safe, doesn't attach)
 tmux capture-pane -t loop-NAME -p | tail -50

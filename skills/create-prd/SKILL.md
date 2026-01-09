@@ -1,5 +1,5 @@
 ---
-name: prd
+name: create-prd
 description: Generate PRDs through adaptive questioning. Use when user says "PRD", "spec", "plan a feature", "what should we build", or describes a project/feature they want to build. Works for both full project PRDs and feature-level specs.
 context_budget:
   skill_md: 200

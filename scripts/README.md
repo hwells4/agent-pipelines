@@ -11,7 +11,7 @@ Generate your plan and tasks first:
 /loop-agents:prd
 
 # 2. Break it into executable tasks (creates beads)
-/loop-agents:generate-stories
+/loop-agents:create-tasks
 ```
 
 This creates beads tagged `loop/{session-name}` that the loop can execute autonomously.
@@ -19,11 +19,11 @@ This creates beads tagged `loop/{session-name}` that the loop can execute autono
 ## How it works
 
 ```
-/prd → /generate-stories → beads → loop.sh → Autonomous execution
+/prd → /create-tasks → beads → loop.sh → Autonomous execution
 ```
 
 1. **Plan**: `/loop-agents:prd` defines what you're building
-2. **Tasks**: `/loop-agents:generate-stories` breaks it into beads with acceptance criteria
+2. **Tasks**: `/loop-agents:create-tasks` breaks it into beads with acceptance criteria
 3. **Configure**: `prompt.md` contains instructions for how the agent should work
 4. **Run**: `loop.sh` picks a task, implements it, commits, repeats
 5. **Learn**: Progress file accumulates patterns across iterations

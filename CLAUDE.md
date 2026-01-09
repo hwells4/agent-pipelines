@@ -32,9 +32,9 @@ Each iteration:
 - `prompt.md` - Instructions piped to Claude each iteration
 
 **Skills (`skills/`)** - Specialized capabilities
-- `run-loop/` - tmux session management (start, monitor, attach, kill, cleanup)
-- `generate-prd/` - Product requirements with adaptive questioning (uses AskUserQuestion)
-- `generate-stories/` - Breaks PRD into verifiable beads with acceptance criteria
+- `loops/` - tmux session management (start, monitor, attach, kill, cleanup)
+- `create-prd/` - Product requirements with adaptive questioning (uses AskUserQuestion)
+- `create-tasks/` - Breaks PRD into verifiable beads with acceptance criteria
 
 **Hooks (`hooks/`)** - Safety and awareness
 - `session-init.sh` - Shows running loops and checks dependencies on session start
@@ -72,7 +72,7 @@ Run a complete adaptive workflow:
 Individual skills:
 ```bash
 /loop-agents:prd               # Generate product requirements
-/loop-agents:generate-stories  # Break PRD into beads
+/loop-agents:create-tasks  # Break PRD into beads
 /loop-agents:loop start        # Launch tmux session
 /loop-agents:loop status       # Check progress
 /loop-agents:loop attach       # Watch live (Ctrl+b, d to detach)

@@ -6,7 +6,7 @@
 
 Run the stale check script:
 ```bash
-bash .claude/skills/run-loop/scripts/warn-stale.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/loops/scripts/warn-stale.sh
 ```
 
 Or manually check sessions running > 2 hours:

@@ -4,7 +4,7 @@ hooks:
     - matcher: "*"
       hooks:
         - type: command
-          command: bash ${CLAUDE_PLUGIN_ROOT}/skills/run-loop/scripts/loop-prehook.sh
+          command: bash ${CLAUDE_PLUGIN_ROOT}/skills/loops/scripts/loop-prehook.sh
           once: true
 ---
 
@@ -96,9 +96,9 @@ Task(subagent_type="Explore", prompt="Find files related to {topic}. Understand 
 
 ### Phase 3: Generate PRD
 
-Invoke the generate-prd skill:
+Invoke the create-prd skill:
 ```
-Skill(skill="generate-prd")
+Skill(skill="create-prd")
 ```
 
 This asks adaptive questions and creates: `brain/outputs/{date}-{slug}-prd.md`
@@ -116,9 +116,9 @@ options:
 
 ### Phase 4: Generate Stories → Beads
 
-Invoke the generate-stories skill:
+Invoke the create-tasks skill:
 ```
-Skill(skill="generate-stories")
+Skill(skill="create-tasks")
 ```
 
 This creates beads tagged `loop/{session-name}` and returns the session name.

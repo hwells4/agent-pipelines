@@ -1,5 +1,5 @@
 ---
-name: generate-stories
+name: create-tasks
 description: Generate stories from a PRD for autonomous or assisted execution. Use when user says "generate tasks", "break this down", "create stories", or has a PRD they want to execute.
 context_budget:
   skill_md: 200
