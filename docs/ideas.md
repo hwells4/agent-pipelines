@@ -78,3 +78,75 @@ Gates pause the pipeline and wait for user confirmation (desktop notification + 
 **Why now:** As adoption grows and loops get more ambitious, cost visibility becomes essential. Users need to understand the economics before running 50-iteration loops.
 
 ---
+
+## Ideas from ideate-20260110 - Iteration 2
+
+### 1. Adaptive Model Selection
+**Problem:** All iterations currently use the same model (typically Opus), but many tasks don't need that power. Simple beads, progress updates, and routine iterations waste expensive tokens on Opus when Haiku or Sonnet would suffice.
+
+**Solution:** Add model selection logic to loops:
+- Define model tiers in loop config: `models: [haiku, sonnet, opus]`
+- Let the completion strategy suggest model for next iteration
+- Simple heuristic: start with cheaper model, escalate on failure/complexity
+- Allow per-stage model override in pipelines
+- Add `--model` flag to force specific model
+
+**Why now:** With Haiku being 50x cheaper than Opus, adaptive selection could cut costs 60-80% on typical workflows without sacrificing quality where it matters.
+
+---
+
+### 2. Automatic Retry with Exponential Backoff
+**Problem:** Transient failures (API rate limits, network timeouts, 503s) crash the entire loop. Users must manually restart, losing momentum and potentially context.
+
+**Solution:** Add retry logic to the Claude execution wrapper:
+- Retry transient errors (5xx, rate limits, timeouts) up to 3 times
+- Exponential backoff: 5s, 15s, 45s delays
+- Log retries to state for visibility
+- Fail fast on non-transient errors (4xx, auth issues)
+- Add `--max-retries` flag to configure
+
+**Why now:** As sessions get longer, probability of hitting a transient failure approaches 100%. This is table stakes for production reliability.
+
+---
+
+### 3. Git Worktree Isolation per Session
+**Problem:** Multiple concurrent loops can conflict if they modify the same files. A `work` loop and a `refine` loop running simultaneously can create race conditions and corrupted state.
+
+**Solution:** Optionally run each session in its own git worktree:
+- `--isolate` flag creates a new worktree at `.worktrees/{session}/`
+- Loop runs entirely within that worktree
+- On completion, offer to merge changes back to main branch
+- Clean up worktree after merge
+- Integrates with existing `git-worktree` skill
+
+**Why now:** Users are starting to run multiple loops concurrently. Without isolation, this is a footgun waiting to happen. Worktrees are the right primitive.
+
+---
+
+### 4. Session Lockfiles
+**Problem:** Starting a loop with the same session name while one is already running leads to corrupted state files, race conditions, and unpredictable behavior. There's no guard against this.
+
+**Solution:** Add lockfile management:
+- Create `.claude/locks/{session}.lock` on session start
+- Check for existing lock before starting
+- Store PID and timestamp in lock file
+- Detect stale locks (PID no longer running) and clean up
+- `--force` flag to override (with warning)
+
+**Why now:** This is a 20-line addition that prevents a class of catastrophic bugs. Easy win that should have been there from day one.
+
+---
+
+### 5. Loop Scaffolding Command
+**Problem:** Creating a new loop type requires knowing the exact file structure, required fields in loop.yaml, and template variable syntax. New users copy-paste and make mistakes.
+
+**Solution:** Add `./scripts/run.sh init loop {name}` command:
+- Creates `scripts/loops/{name}/` directory
+- Generates `loop.yaml` with all fields documented
+- Creates `prompt.md` with commented template showing available variables
+- Optionally copies from existing loop as starting point
+- Validates the result with the loop linter
+
+**Why now:** As the loop library grows, we want users to create custom loops. Scaffolding reduces friction and ensures consistency.
+
+---
