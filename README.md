@@ -1,15 +1,14 @@
 # Loop Agents
 
-A Claude Code plugin for building and running [Ralph loops](https://ghuntley.com/ralph/).
+A [Ralph loop](https://ghuntley.com/ralph/) orchestrator for Claude Code.
 
-## What This Is
+Describe what you want to build, and Claude handles the rest: planning, task breakdown, and running loops in the background. You can attach to watch progress, spin up multiple loops at once, or chain them into pipelines.
 
-Ralph loops let AI agents work through tasks iteratively, with fresh context each time. Loop Agents makes them practical:
-
-- **Background execution** - Loops run in tmux sessions, not your terminal. Attach, detach, let them run overnight.
-- **Multiple loops at once** - Spin up several loops for different features. They don't conflict.
-- **Planning workflow** - Describe what you want, get a PRD and task breakdown, then run the loop.
-- **Pipelines** - Chain loops together. Refine a plan, then refine the tasks, then implement.
+**What you get:**
+- Loops run in tmux, not your terminal. Attach, detach, let them run overnight.
+- Multiple loops at once for parallel features.
+- Planning workflow: PRD → tasks → implementation loop.
+- Pipelines to chain loops together.
 
 ## Build Your Own Loop Agents
 
