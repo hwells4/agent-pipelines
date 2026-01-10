@@ -1,5 +1,6 @@
 #!/bin/bash
-# Output parsing utilities for loop engine
+# Output Parsing Utilities
+# Extracts structured data from Claude's output
 
 # Parse a key:value from output
 # Usage: parse_output "$output" "CHANGES"
@@ -11,7 +12,7 @@ parse_output() {
 }
 
 # Parse multiple keys into JSON object
-# Usage: parse_outputs "$output" "changes:CHANGES" "summary:SUMMARY"
+# Usage: parse_outputs_to_json "$output" "changes:CHANGES" "summary:SUMMARY"
 parse_outputs_to_json() {
   local output=$1
   shift
@@ -30,8 +31,8 @@ parse_outputs_to_json() {
       else
         json="$json,"
       fi
-      # Escape quotes in value and wrap in quotes
-      value=$(echo "$value" | sed 's/"/\\"/g')
+      # Escape quotes and backslashes in value
+      value=$(echo "$value" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
       json="$json\"$json_key\":\"$value\""
     fi
   done

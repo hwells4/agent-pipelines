@@ -1,6 +1,6 @@
 #!/bin/bash
 # Completion strategy: fixed-n
-# Returns 0 (complete) after exactly N iterations
+# Complete after exactly N iterations
 
 check_completion() {
   local session=$1

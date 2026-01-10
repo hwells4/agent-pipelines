@@ -1,4 +1,4 @@
-# Improve Plan Loop - Iteratively refine a plan document
+# Improve Plan Stage - Iteratively refine a plan document
 # Agent decides when quality has plateaued
 
 name: improve-plan
@@ -6,4 +6,4 @@ description: Iteratively improve a plan document until quality plateaus
 completion: plateau
 min_iterations: 2
 delay: 2
-output_parse: plateau:PLATEAU reasoning:REASONING
+output_parse: "plateau:PLATEAU reasoning:REASONING"

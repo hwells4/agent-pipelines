@@ -1,7 +1,6 @@
 #!/bin/bash
 # Completion strategy: all-items
-# Returns 0 (complete) when all items in a list have been processed
-# Used by review loop to run through all reviewers
+# Complete when all items in a list have been processed
 
 check_completion() {
   local session=$1
@@ -9,8 +8,6 @@ check_completion() {
   local output=$3
 
   local iteration=$(get_state "$state_file" "iteration")
-
-  # ITEMS should be set by the loop config (e.g., "security logic performance")
   local item_count=$(echo "$ITEMS" | wc -w | tr -d ' ')
 
   if [ "$iteration" -ge "$item_count" ]; then

@@ -1,4 +1,4 @@
-# Refine Beads Loop - Iteratively improve beads
+# Refine Beads Stage - Iteratively improve beads
 # Agent decides when beads are ready
 
 name: refine-beads
@@ -6,5 +6,5 @@ description: Iteratively refine beads until agent judges them ready
 completion: plateau
 min_iterations: 2
 delay: 3
-output_parse: plateau:PLATEAU reasoning:REASONING
+output_parse: "plateau:PLATEAU reasoning:REASONING"
 prompt: bead-refiner
