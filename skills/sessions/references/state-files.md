@@ -97,11 +97,13 @@ jq --arg name "loop-myfeature" 'del(.sessions[$name])' .claude/loop-sessions.jso
 
 ---
 
-## Loop State Files
+## Session State Files (Unified)
 
-**Location:** `.claude/loop-state-{session-name}.json`
+**Location:** `.claude/pipeline-runs/{session}/state.json`
 
-**Purpose:** Track iteration history for a single loop run. Created by `engine.sh`.
+**Purpose:** Track iteration history for any session (loop or pipeline). Created by `engine.sh`. All sessions now use this unified path.
+
+> **Note:** Loops are now "single-stage pipelines" and use the same directory structure as multi-stage pipelines.
 
 ### Schema
 
@@ -109,16 +111,18 @@ jq --arg name "loop-myfeature" 'del(.sessions[$name])' .claude/loop-sessions.jso
 {
   "session": "myfeature",
   "type": "loop",
-  "loop_type": "work",
   "started_at": "2025-01-10T10:00:00Z",
   "status": "running",
   "iteration": 5,
+  "iteration_completed": 4,
+  "iteration_started": "2025-01-10T10:05:00Z",
+  "current_stage": 0,
+  "stages": [],
   "history": [
     {
       "iteration": 1,
       "timestamp": "2025-01-10T10:01:00Z",
-      "plateau": false,
-      "reasoning": null
+      "plateau": false
     },
     {
       "iteration": 2,
@@ -128,7 +132,7 @@ jq --arg name "loop-myfeature" 'del(.sessions[$name])' .claude/loop-sessions.jso
     }
   ],
   "completed_at": null,
-  "reason": null
+  "completion_reason": null
 }
 ```
 
@@ -136,35 +140,38 @@ jq --arg name "loop-myfeature" 'del(.sessions[$name])' .claude/loop-sessions.jso
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `session` | string | Session name (without `loop-` prefix) |
-| `type` | string | Always `"loop"` |
-| `loop_type` | string | Loop type (work, improve-plan, etc.) |
-| `started_at` | ISO8601 | When loop started |
-| `status` | string | `running`, `completed`, `failed` |
-| `iteration` | number | Current/final iteration count |
-| `history` | array | Per-iteration data |
+| `session` | string | Session name |
+| `type` | string | `"loop"` or `"pipeline"` |
+| `started_at` | ISO8601 | When session started |
+| `status` | string | `running`, `complete`, `failed` |
+| `iteration` | number | Current iteration (for loops) |
+| `iteration_completed` | number | Last fully completed iteration (for crash recovery) |
+| `iteration_started` | ISO8601 | When current iteration began (null if not in progress) |
+| `current_stage` | number | Current stage index (for pipelines) |
+| `stages` | array | Per-stage status (for pipelines) |
+| `history` | array | Per-iteration data with parsed output fields |
 | `completed_at` | ISO8601 | When finished (if applicable) |
-| `reason` | string | Why loop stopped (e.g., "beads-empty", "plateau") |
+| `completion_reason` | string | Why session stopped (e.g., "beads-empty", "plateau", "max_iterations") |
 
-### Reading Loop State
+### Reading Session State
 
 ```bash
 # Current status
-cat .claude/loop-state-myfeature.json | jq '.status'
+cat .claude/pipeline-runs/myfeature/state.json | jq '.status'
 
 # Current iteration
-cat .claude/loop-state-myfeature.json | jq '.iteration'
+cat .claude/pipeline-runs/myfeature/state.json | jq '.iteration'
 
-# Check if complete
-cat .claude/loop-state-myfeature.json | jq 'if .status == "completed" then "done" else "running" end'
+# Check crash recovery info
+cat .claude/pipeline-runs/myfeature/state.json | jq '{iteration, iteration_completed, status}'
 
 # Get completion reason
-cat .claude/loop-state-myfeature.json | jq '.reason'
+cat .claude/pipeline-runs/myfeature/state.json | jq '.completion_reason'
 ```
 
 ---
 
-## Pipeline State Files
+## Multi-Stage Pipeline State
 
 **Location:** `.claude/pipeline-runs/{session-name}/state.json`
 
@@ -219,9 +226,9 @@ cat .claude/pipeline-runs/myrefine/state.json | jq '.status'
 
 ## Progress Files
 
-**Location:** `.claude/loop-progress/progress-{session-name}.txt`
+**Location:** `.claude/pipeline-runs/{session}/progress-{session}.md`
 
-**Purpose:** Accumulated context for fresh agents each iteration. Markdown format.
+**Purpose:** Accumulated context for fresh agents each iteration. Markdown format. Each iteration's agent reads this to maintain context without degradation.
 
 ### Structure
 
@@ -254,30 +261,29 @@ Verify: npm test && npm run build
 
 ```bash
 # Full progress file
-cat .claude/loop-progress/progress-myfeature.txt
+cat .claude/pipeline-runs/myfeature/progress-myfeature.md
 
 # Just the learnings (everything after first ---)
-awk '/^---$/{found=1; next} found' .claude/loop-progress/progress-myfeature.txt
+awk '/^---$/{found=1; next} found' .claude/pipeline-runs/myfeature/progress-myfeature.md
 ```
 
 ---
 
 ## Directory Structure
 
+All sessions (loops AND pipelines) now use the unified `pipeline-runs/` directory:
+
 ```
 .claude/
 ├── loop-sessions.json              # Session tracking (all sessions)
-├── loop-state-{session}.json       # Per-loop iteration history
-├── loop-progress/
-│   └── progress-{session}.txt      # Accumulated context per session
-├── loop-completions.json           # Log of all completions (optional)
 ├── locks/                          # Session lock files
-│   └── {session}.lock              # Per-session lock (prevents duplicates)
-└── pipeline-runs/
-    └── {session}/
-        ├── state.json              # Pipeline progress
-        ├── pipeline.yaml           # Copy of pipeline config
-        └── stage-{N}-{name}/
+│   └── {session}.lock              # Per-session lock with heartbeat
+└── pipeline-runs/                  # ALL sessions go here now
+    └── {session}/                  # Same structure for loops AND pipelines
+        ├── state.json              # Iteration tracking, crash recovery
+        ├── progress-{session}.md   # Accumulated context
+        ├── pipeline.yaml           # Copy of pipeline config (pipelines only)
+        └── stage-{N}-{name}/       # Per-stage directories (multi-stage only)
             ├── progress.md         # Stage-specific progress
             └── output.md           # Stage output
 ```
@@ -296,7 +302,9 @@ awk '/^---$/{found=1; next} found' .claude/loop-progress/progress-myfeature.txt
 {
   "session": "auth",
   "pid": 12345,
-  "started_at": "2025-01-10T10:00:00Z"
+  "started_at": "2025-01-10T10:00:00Z",
+  "heartbeat": "2025-01-10T10:05:30Z",
+  "heartbeat_epoch": 1736503530
 }
 ```
 
@@ -307,6 +315,8 @@ awk '/^---$/{found=1; next} found' .claude/loop-progress/progress-myfeature.txt
 | `session` | string | Session name |
 | `pid` | number | Process ID holding the lock |
 | `started_at` | ISO8601 | When the lock was acquired |
+| `heartbeat` | ISO8601 | Last heartbeat timestamp (updated every 30s) |
+| `heartbeat_epoch` | number | Heartbeat as Unix epoch (for stale detection) |
 
 ### Operations
 
@@ -369,10 +379,11 @@ jq '.sessions |= with_entries(select(.value.status == "running"))' \
 
 **Find orphaned state files (no matching session):**
 ```bash
-for f in .claude/loop-state-*.json; do
-  session=$(basename "$f" | sed 's/loop-state-//; s/.json//')
-  if ! jq -e ".sessions[\"loop-$session\"]" .claude/loop-sessions.json >/dev/null 2>&1; then
-    echo "Orphaned: $f"
+for dir in .claude/pipeline-runs/*/; do
+  [ -d "$dir" ] || continue
+  session=$(basename "$dir")
+  if ! jq -e ".sessions[\"loop-$session\"] // .sessions[\"pipeline-$session\"]" .claude/loop-sessions.json >/dev/null 2>&1; then
+    echo "Orphaned: $dir"
   fi
 done
 ```

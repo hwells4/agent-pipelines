@@ -42,33 +42,28 @@ This shows the last 100 lines of output without attaching.
 
 ## Step 4: Check Session State
 
-For loops:
+All sessions use the unified pipeline-runs directory:
+
 ```bash
 # Extract session tag from name (e.g., "auth" from "loop-auth")
-SESSION_TAG="${SESSION_NAME#loop-}"
-
-# Check loop state file
-if [ -f ".claude/loop-state-$SESSION_TAG.json" ]; then
-  echo "Loop State:"
-  cat ".claude/loop-state-$SESSION_TAG.json" | jq '{
-    status: .status,
-    iteration: .iteration,
-    completed_at: .completed_at,
-    reason: .reason
-  }'
+if [[ "$SESSION_NAME" == loop-* ]]; then
+  SESSION_TAG="${SESSION_NAME#loop-}"
+elif [[ "$SESSION_NAME" == pipeline-* ]]; then
+  SESSION_TAG="${SESSION_NAME#pipeline-}"
+else
+  SESSION_TAG="$SESSION_NAME"
 fi
-```
 
-For pipelines:
-```bash
-SESSION_TAG="${SESSION_NAME#pipeline-}"
-
+# Check session state file (unified location)
 if [ -f ".claude/pipeline-runs/$SESSION_TAG/state.json" ]; then
-  echo "Pipeline State:"
+  echo "Session State:"
   cat ".claude/pipeline-runs/$SESSION_TAG/state.json" | jq '{
     status: .status,
+    iteration: .iteration,
+    iteration_completed: .iteration_completed,
     current_stage: .current_stage,
-    completed_stages: .completed_stages
+    completed_at: .completed_at,
+    completion_reason: .completion_reason
   }'
 fi
 ```

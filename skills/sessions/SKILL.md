@@ -119,10 +119,7 @@ tmux list-sessions 2>/dev/null | grep -E "^(loop-|pipeline-)"
 # Kill session
 tmux kill-session -t SESSION_NAME
 
-# Check loop state
-cat .claude/loop-state-NAME.json | jq '.status'
-
-# Check pipeline state
+# Check session state (all sessions use unified path)
 cat .claude/pipeline-runs/NAME/state.json | jq '.status'
 
 # Check session locks

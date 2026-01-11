@@ -229,8 +229,8 @@ Quick commands:
   Kill:     tmux kill-session -t loop-{session-name}
 
 Progress tracking:
-  State:    cat .claude/loop-state-{session-name}.json
-  Progress: cat .claude/loop-progress/progress-{session-name}.txt
+  State:    cat .claude/pipeline-runs/{session-name}/state.json
+  Progress: cat .claude/pipeline-runs/{session-name}/progress-{session-name}.md
   Beads:    bd ready --label=loop/{session-name}
 
 The session is running in the background. Use 'Monitor' to check progress.
