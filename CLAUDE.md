@@ -108,7 +108,7 @@ A loop = prompt template + completion strategy. Each iteration:
 
 ### State vs Progress Files
 
-**State file** (`.claude/state.json`): JSON tracking iteration history for completion checks and crash recovery
+**State file** (`.claude/pipeline-runs/{session}/state.json`): JSON tracking iteration history for completion checks and crash recovery
 ```json
 {
   "session": "auth",
@@ -120,7 +120,7 @@ A loop = prompt template + completion strategy. Each iteration:
 }
 ```
 
-**Progress file** (`.claude/loop-progress/progress-{session}.txt`): Markdown with accumulated learnings. Fresh Claude reads this each iteration to maintain context.
+**Progress file** (`.claude/pipeline-runs/{session}/progress-{session}.md`): Markdown with accumulated learnings. Fresh Claude reads this each iteration to maintain context.
 
 **Lock file** (`.claude/locks/{session}.lock`): JSON preventing concurrent sessions with the same name. Contains PID, session name, start time, and heartbeat timestamp for crash detection.
 ```json
@@ -209,10 +209,10 @@ output_parse: plateau:PLATEAU reasoning:REASONING  # extract from output
 tmux attach -t loop-{session}
 
 # Check loop state
-cat .claude/state.json | jq
+cat .claude/pipeline-runs/{session}/state.json | jq
 
 # View progress file
-cat .claude/loop-progress/progress-{session}.txt
+cat .claude/pipeline-runs/{session}/progress-{session}.md
 
 # Check remaining beads
 bd ready --label=loop/{session}

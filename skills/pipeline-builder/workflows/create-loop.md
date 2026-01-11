@@ -251,6 +251,11 @@ To run:
 
 Example:
 ./scripts/run.sh loop {name} my-session 25
+
+Session files created at:
+  .claude/pipeline-runs/{session-name}/
+  ├── state.json              # Iteration tracking + crash recovery
+  └── progress-{session}.md   # Accumulated context
 ```
 
 ## Success Criteria

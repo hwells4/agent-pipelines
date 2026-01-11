@@ -17,8 +17,8 @@ All prompt templates (prompt.md files and inline pipeline prompts) support varia
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `${PROGRESS}` | Path to progress file | `.claude/loop-progress/progress-auth.txt` |
-| `${PROGRESS_FILE}` | Same as PROGRESS | `.claude/loop-progress/progress-auth.txt` |
+| `${PROGRESS}` | Path to progress file | `.claude/pipeline-runs/auth/progress-auth.md` |
+| `${PROGRESS_FILE}` | Same as PROGRESS | `.claude/pipeline-runs/auth/progress-auth.md` |
 | `${OUTPUT}` | Path to write output (pipelines) | `.claude/pipeline-runs/session/stage-1/output.md` |
 
 ### Pipeline-Specific

@@ -191,16 +191,17 @@ stages:
 
 ## Run Directory Structure
 
-When a pipeline runs, it creates:
+When any session runs (loop or pipeline), it creates:
 
 ```
 .claude/pipeline-runs/{session}/
-├── pipeline.yaml          # Copy of pipeline config
-├── state.json             # Pipeline state
-├── stage-1-{name}/        # Each stage gets a directory
-│   ├── progress.md
-│   ├── output.md          # Single run output
-│   └── run-0.md, run-1.md # Multiple run outputs
-└── stage-2-{name}/
-    └── ...
+├── state.json                 # Session state + crash recovery
+├── progress-{session}.md      # Accumulated context (single-stage)
+├── pipeline.yaml              # Copy of pipeline config (multi-stage only)
+└── stage-{N}-{name}/          # Per-stage directories (multi-stage only)
+    ├── progress.md
+    ├── output.md
+    └── run-{N}.md
 ```
+
+**Note:** A standalone loop (e.g., `./run.sh work auth 25`) is internally a single-stage pipeline, so it uses the same directory structure.
