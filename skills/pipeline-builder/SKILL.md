@@ -40,18 +40,14 @@ Apply these defaults based on what the user is trying to accomplish. Only deviat
 **Do not follow a rigid question script.** Instead:
 
 1. Look at what the user has already told you
-2. Determine what information is missing for the task type
+2. Determine what information is missing
 3. Use your judgment to decide if you need clarification or can proceed with sensible defaults
 
-**For creating a loop, you need to know:**
-- What should each iteration do? (the agent's task)
-- When should the loop stop? (completion condition)
-- Any special output parsing needed?
-
-**For creating a pipeline, you need to know:**
-- What stages should it have?
-- How many runs per stage?
-- What loops does each stage use (existing or new)?
+**To create a pipeline, you need to know:**
+- What's the goal? (determines completion strategy)
+- How many stages? (single or multi)
+- For each stage: existing or new?
+- If new: what should each iteration do?
 
 If the user's description is clear enough, proceed. If not, ask focused questions using `AskUserQuestion`.
 
@@ -60,20 +56,18 @@ If the user's description is clear enough, proceed. If not, ask focused question
 ### 1. Understand Intent
 
 When invoked, determine what the user wants:
-- **Create loop** → `workflows/create-loop.md`
-- **Create pipeline** → `workflows/create-pipeline.md`
+- **Create pipeline** → `workflows/create.md` (handles both single and multi-stage)
 - **Edit existing** → `workflows/edit.md`
 
 If unclear, ask:
 ```json
 {
   "questions": [{
-    "question": "What would you like to build?",
-    "header": "Build Type",
+    "question": "What would you like to do?",
+    "header": "Action",
     "options": [
-      {"label": "New Loop", "description": "Create a custom loop agent with its own prompt and completion strategy"},
-      {"label": "New Pipeline", "description": "Chain multiple loops together into a multi-stage workflow"},
-      {"label": "Edit Existing", "description": "Modify an existing loop or pipeline configuration"}
+      {"label": "Create Pipeline", "description": "Create a new pipeline (single or multi-stage)"},
+      {"label": "Edit Existing", "description": "Modify an existing stage or pipeline configuration"}
     ],
     "multiSelect": false
   }]
@@ -152,6 +146,5 @@ Read and follow the appropriate workflow file exactly.
 
 | Workflow | Purpose |
 |----------|---------|
-| workflows/create-loop.md | Step-by-step loop creation |
-| workflows/create-pipeline.md | Step-by-step pipeline creation |
+| workflows/create.md | Create pipelines (single or multi-stage) |
 | workflows/edit.md | Modify existing configurations |
