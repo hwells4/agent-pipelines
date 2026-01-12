@@ -45,6 +45,7 @@ source "$LIB_DIR/status.sh"
 source "$LIB_DIR/notify.sh"
 source "$LIB_DIR/lock.sh"
 source "$LIB_DIR/validate.sh"
+source "$LIB_DIR/provider.sh"
 
 # Export for hooks
 export CLAUDE_PIPELINE_AGENT=1
@@ -106,6 +107,7 @@ load_stage() {
   STAGE_ITEMS=$(json_get "$STAGE_CONFIG" ".items" "")
   STAGE_PROMPT_NAME=$(json_get "$STAGE_CONFIG" ".prompt" "prompt")
   STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
+  STAGE_PROVIDER=$(json_get "$STAGE_CONFIG" ".provider" "claude")
 
   # Export for completion strategies
   export MIN_ITERATIONS="$STAGE_MIN_ITERATIONS"
@@ -128,29 +130,8 @@ load_stage() {
 }
 
 #-------------------------------------------------------------------------------
-# Execution
+# Run Stage
 #-------------------------------------------------------------------------------
-
-# Execute Claude with a prompt
-# Usage: execute_claude "$prompt" "$model" "$output_file"
-execute_claude() {
-  local prompt=$1
-  local model=${2:-"opus"}
-  local output_file=$3
-
-  # Normalize model names
-  case "$model" in
-    opus|claude-opus|opus-4|opus-4.5) model="opus" ;;
-    sonnet|claude-sonnet|sonnet-4) model="sonnet" ;;
-    haiku|claude-haiku) model="haiku" ;;
-  esac
-
-  if [ -n "$output_file" ]; then
-    printf '%s' "$prompt" | claude --model "$model" --dangerously-skip-permissions 2>&1 | tee "$output_file"
-  else
-    printf '%s' "$prompt" | claude --model "$model" --dangerously-skip-permissions 2>&1
-  fi
-}
 
 # Run a single stage for N iterations
 # Usage: run_stage "$stage_type" "$session" "$max_iterations" "$run_dir" "$stage_idx" "$start_iteration"
@@ -251,9 +232,12 @@ run_stage() {
     # Resolve prompt
     local resolved_prompt=$(resolve_prompt "$STAGE_PROMPT" "$vars_json")
 
-    # Execute Claude
+    # Check provider is available
+    check_provider "$STAGE_PROVIDER" || return 1
+
+    # Execute agent
     set +e
-    local output=$(execute_claude "$resolved_prompt" "$STAGE_MODEL" | tee /dev/stderr)
+    local output=$(execute_agent "$STAGE_PROVIDER" "$resolved_prompt" "$STAGE_MODEL" | tee /dev/stderr)
     local exit_code=$?
     set -e
 
@@ -384,6 +368,7 @@ run_pipeline() {
 
   # Get defaults
   local default_model=$(json_get "$pipeline_json" ".defaults.model" "sonnet")
+  local default_provider=$(json_get "$pipeline_json" ".defaults.provider" "claude")
 
   # Execute each stage
   local stage_count=$(json_array_len "$pipeline_json" ".stages")
@@ -392,6 +377,7 @@ run_pipeline() {
     local stage_name=$(json_get "$pipeline_json" ".stages[$stage_idx].name")
     local stage_runs=$(json_get "$pipeline_json" ".stages[$stage_idx].runs" "1")
     local stage_model=$(json_get "$pipeline_json" ".stages[$stage_idx].model" "$default_model")
+    local stage_provider=$(json_get "$pipeline_json" ".stages[$stage_idx].provider" "$default_provider")
     # Support both "stage" (new) and "loop" (legacy) keywords
     local stage_type=$(json_get "$pipeline_json" ".stages[$stage_idx].stage" "")
     [ -z "$stage_type" ] && stage_type=$(json_get "$pipeline_json" ".stages[$stage_idx].loop" "")
@@ -487,9 +473,12 @@ run_pipeline() {
       # Resolve prompt
       local resolved_prompt=$(resolve_prompt "$stage_prompt" "$vars_json")
 
-      # Execute
+      # Check provider is available
+      check_provider "$stage_provider" || return 1
+
+      # Execute agent
       set +e
-      local output=$(execute_claude "$resolved_prompt" "$stage_model" "$output_file")
+      local output=$(execute_agent "$stage_provider" "$resolved_prompt" "$stage_model" "$output_file")
       local exit_code=$?
       set -e
 

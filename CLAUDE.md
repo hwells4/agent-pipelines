@@ -91,6 +91,7 @@ scripts/
 │   ├── validate.sh           # Lint and dry-run validation
 │   ├── test.sh               # Test framework utilities
 │   ├── mock.sh               # Mock execution for testing
+│   ├── provider.sh           # Provider abstraction (Claude, Codex)
 │   └── completions/          # Termination strategies
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
@@ -137,6 +138,24 @@ A stage = prompt template + termination strategy. Stages are defined in `scripts
 4. Agent writes `status.json` with decision (continue/stop/error)
 5. Engine saves output snapshot to `iterations/NNN/output.md`
 6. Checks termination condition → stop or continue
+
+### Providers
+
+Stages can use different AI agent providers. The default is Claude Code.
+
+| Provider | Aliases | CLI | Default Model | Skip Permissions |
+|----------|---------|-----|---------------|------------------|
+| Claude Code | `claude`, `claude-code`, `anthropic` | `claude` | opus | `--dangerously-skip-permissions` |
+| Codex | `codex`, `openai` | `codex` | gpt-5.2-codex | `--dangerously-bypass-approvals-and-sandbox` |
+
+**Codex reasoning effort:** Set via `CODEX_REASONING_EFFORT` env var (minimal, low, medium, high). Default: `high`.
+
+**Configuration:**
+```yaml
+# In stage.yaml
+provider: codex  # or claude (default)
+model: gpt-5.2-codex  # provider-specific model
+```
 
 ### State vs Progress Files
 
@@ -240,6 +259,8 @@ termination:
 delay: 3                # seconds between iterations
 
 # Optional fields:
+provider: claude                    # claude or codex (default: claude)
+model: opus                         # model name (provider-specific)
 prompt: prompts/custom.md           # custom prompt path (default: prompt.md)
 output_path: docs/output-${SESSION}.md  # direct output to specific file
 ```
