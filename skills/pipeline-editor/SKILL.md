@@ -5,7 +5,7 @@ description: Edit existing stages and pipelines. Use when user wants to modify l
 
 ## What This Skill Does
 
-Modifies existing stage and pipeline configurations. Conversational approach—understand what the user wants, figure out what to edit, confirm before changing.
+Modifies existing stage and pipeline configurations, and answers questions about them. Conversational approach—understand what the user wants, figure out what to do, act with intelligence.
 
 ## Natural Skill Detection
 
@@ -13,53 +13,66 @@ Trigger on:
 - "Edit the elegance stage"
 - "Change the termination strategy for..."
 - "Modify the work loop to use..."
-- "Update the pipeline config..."
 - "Make the improve-plan stage use opus"
+- "How does the work stage decide when to stop?"
+- "What model does elegance use?"
 - `/pipeline edit`
 
 ## Philosophy
 
-**Don't ask menu questions.** The user will tell you what they want changed. Your job is to:
+**Use your intelligence.** This is not a checklist task.
 
+You might be editing. You might be answering questions. You might be exploring options with the user. The conversation will tell you what's needed.
+
+When editing:
 1. Listen to what they want
 2. Figure out which files need editing
 3. Propose a plan
 4. Execute after confirmation
 
+When answering questions:
+1. Investigate the actual configuration
+2. Give a direct, specific answer
+3. Offer to make changes if relevant
+
+When exploring:
+1. Probe specific ideas - "Would increasing consensus help with false positives?"
+2. Show real examples from the codebase
+3. Help them think through the implications
+
+**Don't standardize.** Each conversation is different. Trust your judgment about when you have enough context to act.
+
 ## Intake
 
-If the user says `/pipeline edit` without context, ask an open-ended question:
+If the user says `/pipeline edit` without context:
 
-> What would you like to change?
+> What would you like to change or know about?
 
-Then listen. They might say:
-- "Make the elegance stage run longer" → Edit `scripts/loops/elegance/loop.yaml`
-- "Change the prompt for refine-beads" → Edit `scripts/loops/refine-beads/prompt.md`
-- "Add another stage to full-refine" → Edit `scripts/pipelines/full-refine.yaml`
+Then follow the conversation. They might want to:
+- Edit something: "Make the elegance stage run longer"
+- Ask a question: "What termination strategy does work use?"
+- Explore options: "I'm not sure if judgment or queue is right for my use case"
 
 ## Workflow
 
+There's no fixed workflow. Use your judgment. Common patterns:
+
+**For edits:**
 ```
-Step 1: UNDERSTAND
-├─ Listen to what the user wants
-├─ Ask clarifying questions if genuinely unclear
-└─ Infer the target (stage/pipeline, which one, what property)
-
-Step 2: INVESTIGATE
-├─ Read the current configuration
-├─ Understand what exists
-└─ Identify exactly what needs to change
-
-Step 3: PROPOSE PLAN
-├─ "Here's what I'll change:"
-├─ Show the specific edits
-└─ Ask: "Does this look right?"
-
-Step 4: EXECUTE (after confirmation)
-├─ Make the edits
-├─ Run lint validation
-└─ Show the result
+Listen → Investigate → Propose → Confirm → Execute
 ```
+
+**For questions:**
+```
+Investigate → Answer directly → Offer related changes if relevant
+```
+
+**For exploration:**
+```
+Probe their thinking → Show real examples → Help them decide → Offer to implement
+```
+
+The key is: **investigate before acting**. Read the actual files. Understand what exists. Then respond appropriately.
 
 ## Investigation
 
@@ -156,9 +169,9 @@ If validation fails, fix the issue before presenting the result.
 
 ## Success Criteria
 
-- [ ] Understood what user wants without menu questions
-- [ ] Investigated current configuration
-- [ ] Proposed clear plan with before/after
-- [ ] Got explicit confirmation before editing
-- [ ] Made changes and validated with lint
-- [ ] Showed final result
+- [ ] Responded appropriately to what the user actually wanted
+- [ ] Investigated actual configuration before acting
+- [ ] For edits: proposed plan and got confirmation before changing
+- [ ] For edits: validated with lint after changing
+- [ ] For questions: gave specific, accurate answers
+- [ ] Used intelligence, not checklists

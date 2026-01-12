@@ -1,92 +1,121 @@
-# Workflow: Edit Configuration
+# Workflow: Edit & Explore
 
-Modify existing stage or pipeline configurations through conversation.
+Work with existing stage and pipeline configurations. Edit them, answer questions about them, help users explore options.
 
 ## Philosophy
 
-**Don't ask menu questions.** Listen, investigate, propose, confirm, execute.
+**Use your intelligence.** This is not a checklist task.
 
-## Step 1: Understand
+The conversation will tell you what's needed. Sometimes you're editing. Sometimes you're answering questions. Sometimes you're helping someone think through options. Respond to what's actually happening.
 
-Listen to what the user wants. If they said `/pipeline edit` with no context:
+## Investigation First
 
-> What would you like to change?
-
-Otherwise, parse their request. Examples:
-
-| User Says | Target | Property |
-|-----------|--------|----------|
-| "Make elegance run for 10 iterations" | `scripts/loops/elegance/loop.yaml` | `termination.max_iterations` |
-| "Change improve-plan to use opus" | `scripts/loops/improve-plan/loop.yaml` | `model` |
-| "Edit the refine-beads prompt" | `scripts/loops/refine-beads/prompt.md` | content |
-| "Add a stage to full-refine" | `scripts/pipelines/full-refine.yaml` | `stages[]` |
-
-If genuinely unclear, ask a clarifying question. But try to infer first.
-
-## Step 2: Investigate
-
-Read the current configuration:
+Before doing anything, understand what exists:
 
 ```bash
-# For stages
+# See what stages exist
+ls scripts/loops/
+
+# See what pipelines exist
+ls scripts/pipelines/*.yaml
+
+# Read a stage's config
 cat scripts/loops/{stage}/loop.yaml
 cat scripts/loops/{stage}/prompt.md
 
-# For pipelines
+# Read a pipeline's config
 cat scripts/pipelines/{name}.yaml
-
-# To see what exists
-ls scripts/loops/
-ls scripts/pipelines/*.yaml
 ```
 
-Understand:
-- What currently exists
-- What specifically needs to change
-- Any constraints or dependencies
+**Always read the actual files.** Don't guess what's in them.
 
-## Step 3: Propose Plan
+## When Editing
 
-Present a clear before/after:
+If the user wants to change something:
 
-```markdown
-## Proposed Changes
+1. **Understand what they want** - Parse their request. If unclear, ask, but try to infer first.
 
-**Target:** `scripts/loops/elegance/loop.yaml`
+2. **Show what exists** - Read the file, show the relevant section.
 
-**Current:**
-```yaml
-model: sonnet
-termination:
-  type: judgment
-  consensus: 2
+3. **Propose the change** - Clear before/after. Explain why this achieves what they asked.
+
+4. **Wait for confirmation** - Don't edit until they say yes.
+
+5. **Execute and validate** - Make the change, run lint, show the result.
+
+Example flow:
+```
+User: "Make elegance use opus"
+
+You: [Read loop.yaml]
+     Currently elegance uses sonnet. I'll change it to opus:
+
+     model: sonnet → model: opus
+
+     Want me to make this change?
+
+User: yes
+
+You: [Edit file, run lint]
+     Done. Elegance now uses opus. Lint passed.
 ```
 
-**After:**
-```yaml
-model: opus
-termination:
-  type: judgment
-  consensus: 2
+## When Answering Questions
+
+If the user asks about configuration:
+
+1. **Investigate** - Read the actual files.
+
+2. **Answer directly** - Give specific information from the files.
+
+3. **Offer changes if relevant** - "Would you like me to change this?"
+
+Example:
+```
+User: "What termination does work use?"
+
+You: [Read loop.yaml]
+     Work uses queue termination - it checks `bd ready` and stops
+     when the bead queue is empty. There's no consensus requirement;
+     it just runs until there's no more work.
+
+     Want me to show you how it's configured?
 ```
 
-**Why:** You asked to use opus for the elegance stage.
+## When Exploring
 
-Does this look right?
+If the user is thinking through options:
+
+1. **Probe their thinking** - Ask about their specific situation.
+   - "What's happening that makes you think judgment isn't working?"
+   - "Are you seeing false positives or false negatives?"
+
+2. **Show real examples** - Point to actual configurations.
+   - "The elegance stage uses judgment with consensus: 2. Here's how it's set up..."
+
+3. **Help them reason** - Don't just list options. Help them think through implications.
+   - "If you increase consensus to 3, you'll get fewer false stops but might run longer than needed."
+
+4. **Offer to implement** - When they've decided, offer to make the change.
+
+## Handling Ambiguity
+
+When the user's request could mean multiple things:
+
+**Bad:** Ask a menu question
+**Good:** Make your best inference and check
+
+```
+User: "Make work faster"
+
+You: I can reduce the delay between iterations from 3s to 1s,
+     which will make it cycle faster. Or did you mean something
+     else by "faster"?
 ```
 
-For prompt changes, show the specific section being modified.
+## Validation
 
-For pipeline changes, show the stages array before/after.
-
-**Wait for explicit confirmation before proceeding.**
-
-## Step 4: Execute
-
-After user confirms:
-
-1. Make the edits using the Edit tool
-2. Run validation:
+After any edit, validate:
 
 ```bash
 ./scripts/run.sh lint loop {stage}
@@ -94,47 +123,13 @@ After user confirms:
 ./scripts/run.sh lint pipeline {name}.yaml
 ```
 
-3. If validation fails, fix and re-validate
-4. Show the result:
+If it fails, fix and re-validate before reporting success.
 
-```markdown
-## Done
+## Success
 
-Updated `scripts/loops/elegance/loop.yaml`:
-- Changed `model` from `sonnet` to `opus`
-
-Validation: Passed
-```
-
-## Handling Ambiguity
-
-If the user's request could mean multiple things:
-
-**Bad:** Ask a menu question
-**Good:** Make your best guess and confirm
-
-Example:
-> User: "Make the work stage faster"
->
-> You: I'll reduce the delay between iterations from 3 seconds to 1 second.
-> This will make the work stage cycle faster. Does that sound right,
-> or did you mean something else by "faster"?
-
-## Handling Multiple Changes
-
-If the user wants several changes:
-
-1. Propose all changes together
-2. Get one confirmation for the batch
-3. Execute all changes
-4. Validate once at the end
-
-## Success Criteria
-
-- [ ] Understood request without menu questions
-- [ ] Read current configuration
-- [ ] Proposed clear plan with before/after
-- [ ] Got explicit confirmation
-- [ ] Made changes
-- [ ] Validation passed
-- [ ] Showed final result
+You succeeded if:
+- You responded to what the user actually wanted
+- You investigated before acting
+- For edits: you got confirmation and validated
+- For questions: you gave accurate, specific answers
+- You used your judgment, not a checklist
