@@ -83,7 +83,6 @@ scripts/
 │   ├── resolve.sh            # Template variable resolution
 │   ├── notify.sh             # Desktop notifications + logging
 │   ├── lock.sh               # Session locking (prevents duplicates)
-│   ├── heartbeat.sh          # Crash detection via periodic heartbeats
 │   └── completions/          # Termination strategies
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
@@ -138,14 +137,12 @@ A stage = prompt template + termination strategy. Stages are defined in `scripts
 
 **Progress file** (`.claude/pipeline-runs/{session}/progress-{session}.md`): Markdown with accumulated learnings. Fresh Claude reads this each iteration to maintain context.
 
-**Lock file** (`.claude/locks/{session}.lock`): JSON preventing concurrent sessions with the same name. Contains PID, session name, start time, and heartbeat timestamp for crash detection.
+**Lock file** (`.claude/locks/{session}.lock`): JSON preventing concurrent sessions with the same name. Contains PID, session name, and start time.
 ```json
 {
   "session": "auth",
   "pid": 12345,
-  "started_at": "2025-01-10T10:00:00Z",
-  "heartbeat": "2025-01-10T10:05:30Z",
-  "heartbeat_epoch": 1736503530
+  "started_at": "2025-01-10T10:00:00Z"
 }
 ```
 
@@ -286,9 +283,9 @@ Run with --resume to continue from iteration 5
 ```
 
 **How crash detection works:**
-1. Heartbeat updates every 30s during iteration execution
-2. On startup, engine checks: lock exists + PID dead + stale heartbeat = crashed
-3. State file tracks `iteration_started` and `iteration_completed` for precise resume
+1. On startup, engine checks: lock exists + PID dead = crashed
+2. State file tracks `iteration_started` and `iteration_completed` for precise resume
+3. For hung sessions (PID alive but stuck), use `tmux attach` to diagnose
 
 ### Session Locks
 
@@ -298,7 +295,7 @@ Locks prevent running duplicate sessions with the same name. They are automatica
 # List active locks
 ls .claude/locks/
 
-# View lock details (PID, start time, heartbeat)
+# View lock details (PID, start time)
 cat .claude/locks/{session}.lock | jq
 
 # Check if a session is locked

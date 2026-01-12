@@ -31,10 +31,16 @@ record_completion() {
 
   mkdir -p "$PROJECT_ROOT/.claude"
 
-  local entry="{\"session\": \"$session\", \"type\": \"$type\", \"status\": \"$status\", \"completed_at\": \"$timestamp\"}"
+  # Use jq --arg for safe JSON construction (prevents injection)
+  local entry=$(jq -n \
+    --arg session "$session" \
+    --arg type "$type" \
+    --arg status "$status" \
+    --arg ts "$timestamp" \
+    '{session: $session, type: $type, status: $status, completed_at: $ts}')
 
   if [ -f "$file" ]; then
-    jq ". += [$entry]" "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    jq --argjson entry "$entry" '. += [$entry]' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
   else
     echo "[$entry]" > "$file"
   fi

@@ -48,16 +48,22 @@ validate_status() {
 
 # Read status decision
 # Usage: get_status_decision "$status_file"
-# Returns: decision value or "continue" if file doesn't exist/invalid
+# Returns: decision value or "error" if file doesn't exist/invalid
 get_status_decision() {
   local status_file=$1
 
   if [ ! -f "$status_file" ]; then
-    echo "continue"
-    return
+    echo "error"
+    return 1
   fi
 
-  jq -r '.decision // "continue"' "$status_file" 2>/dev/null || echo "continue"
+  # Check if it's valid JSON first (fail fast on malformed status)
+  if ! jq -e '.' "$status_file" &>/dev/null; then
+    echo "error"
+    return 1
+  fi
+
+  jq -r '.decision // "error"' "$status_file" 2>/dev/null || echo "error"
 }
 
 # Read status reason

@@ -294,6 +294,12 @@ run_stage() {
       create_error_status "$status_file" "Agent did not write status.json"
     fi
 
+    # Validate status.json before using it (fail fast on malformed JSON)
+    if ! validate_status "$status_file"; then
+      echo "Warning: Invalid status.json - creating error status" >&2
+      create_error_status "$status_file" "Agent wrote invalid status.json"
+    fi
+
     # Extract status data for state history
     local history_json=$(status_to_history_json "$status_file")
 
@@ -519,6 +525,12 @@ run_pipeline() {
       # Phase 3: Create error status if agent didn't write status.json
       if [ ! -f "$status_file" ]; then
         create_error_status "$status_file" "Agent did not write status.json"
+      fi
+
+      # Validate status.json before using it (fail fast on malformed JSON)
+      if ! validate_status "$status_file"; then
+        echo "Warning: Invalid status.json - creating error status" >&2
+        create_error_status "$status_file" "Agent wrote invalid status.json"
       fi
 
       # Check completion (v3: pass status file path)
