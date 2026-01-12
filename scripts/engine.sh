@@ -15,11 +15,11 @@ set -e
 MODE=${1:?"Usage: engine.sh <pipeline|status> <args>"}
 shift
 
-# Paths
+# Paths (allow env overrides for testing)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(pwd)"
-LIB_DIR="$SCRIPT_DIR/lib"
-STAGES_DIR="$SCRIPT_DIR/stages"
+PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+LIB_DIR="${LIB_DIR:-$SCRIPT_DIR/lib}"
+STAGES_DIR="${STAGES_DIR:-$SCRIPT_DIR/stages}"
 
 export PROJECT_ROOT
 
@@ -329,6 +329,8 @@ run_stage() {
 run_pipeline() {
   local pipeline_file=$1
   local session_override=$2
+  local start_stage=${3:-0}
+  local start_iteration=${4:-1}
 
   # Resolve pipeline file
   if [ ! -f "$pipeline_file" ]; then
@@ -367,13 +369,22 @@ run_pipeline() {
   echo ""
 
   # Get defaults
-  local default_model=$(json_get "$pipeline_json" ".defaults.model" "sonnet")
+  local default_model=$(json_get "$pipeline_json" ".defaults.model" "opus")
   local default_provider=$(json_get "$pipeline_json" ".defaults.provider" "claude")
 
   # Execute each stage
   local stage_count=$(json_array_len "$pipeline_json" ".stages")
 
   for stage_idx in $(seq 0 $((stage_count - 1))); do
+    # Skip completed stages during resume
+    if [ "$stage_idx" -lt "$start_stage" ]; then
+      if is_stage_complete "$state_file" "$stage_idx"; then
+        local skipped_name=$(json_get "$pipeline_json" ".stages[$stage_idx].name")
+        echo "  ⏭ Skipping completed stage: $skipped_name"
+        continue
+      fi
+    fi
+
     local stage_name=$(json_get "$pipeline_json" ".stages[$stage_idx].name")
     local stage_runs=$(json_get "$pipeline_json" ".stages[$stage_idx].runs" "1")
     local stage_model=$(json_get "$pipeline_json" ".stages[$stage_idx].model" "$default_model")
@@ -424,10 +435,19 @@ run_pipeline() {
       [ -f "$completion_script" ] && source "$completion_script"
     fi
 
+    # Determine starting iteration for this stage
+    local stage_start_iter=0
+    if [ "$stage_idx" -eq "$start_stage" ] && [ "$start_iteration" -gt 1 ]; then
+      stage_start_iter=$((start_iteration - 1))
+      echo "  Resuming from iteration $start_iteration..."
+    fi
+
     # Run iterations
-    for run_idx in $(seq 0 $((stage_runs - 1))); do
+    local iterations_run=0
+    for run_idx in $(seq $stage_start_iter $((stage_runs - 1))); do
       local iteration=$((run_idx + 1))
       echo "  Iteration $iteration/$stage_runs..."
+      iterations_run=$((iterations_run + 1))
 
       # Build stage config JSON for v3 context generation
       local stage_config_json=$(jq -n \
@@ -476,6 +496,9 @@ run_pipeline() {
       # Resolve prompt
       local resolved_prompt=$(resolve_prompt "$stage_prompt" "$vars_json")
 
+      # Track iteration start in state
+      mark_iteration_started "$state_file" "$iteration"
+
       # Execute agent
       set +e
       local output=$(execute_agent "$stage_provider" "$resolved_prompt" "$stage_model" "$output_file")
@@ -522,6 +545,9 @@ run_pipeline() {
         create_error_status "$status_file" "Agent wrote invalid status.json"
       fi
 
+      # Track iteration completion in state
+      mark_iteration_completed "$state_file" "$iteration"
+
       # Check completion (v3: pass status file path)
       if [ -n "$stage_completion" ] && type check_completion &>/dev/null; then
         if check_completion "$session" "$state_file" "$status_file"; then
@@ -532,6 +558,19 @@ run_pipeline() {
 
       [ "$run_idx" -lt "$((stage_runs - 1))" ] && sleep 2
     done
+
+    # Bug 3 fix: Validate that at least one iteration ran
+    if [ "$iterations_run" -eq 0 ]; then
+      echo ""
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  Error: Stage '$stage_name' completed zero iterations"
+      echo "  This indicates a bug in the pipeline configuration or engine"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo ""
+      update_stage "$state_file" "$stage_idx" "$stage_name" "failed"
+      mark_failed "$state_file" "Stage '$stage_name' completed zero iterations" "zero_iterations"
+      return 1
+    fi
 
     update_stage "$state_file" "$stage_idx" "$stage_name" "complete"
     echo ""
@@ -651,13 +690,19 @@ case "$MODE" in
       check_failed_session "$SESSION" "$STATE_FILE" "${MAX_ITERATIONS:-?}"
     fi
 
-    # Determine start iteration for resume
+    # Determine start iteration and stage for resume
     START_ITERATION=1
+    START_STAGE=0
     if [ "$RESUME_FLAG" = "--resume" ]; then
       if [ -f "$STATE_FILE" ]; then
         START_ITERATION=$(get_resume_iteration "$STATE_FILE")
+        START_STAGE=$(get_resume_stage "$STATE_FILE")
         reset_for_resume "$STATE_FILE"
-        echo "Resuming session '$SESSION' from iteration $START_ITERATION"
+        if [ "$SINGLE_STAGE" = "true" ]; then
+          echo "Resuming session '$SESSION' from iteration $START_ITERATION"
+        else
+          echo "Resuming session '$SESSION' from stage $((START_STAGE + 1)), iteration $START_ITERATION"
+        fi
       else
         echo "Error: Cannot resume - no previous session '$SESSION' found."
         exit 1
@@ -677,7 +722,7 @@ case "$MODE" in
       mkdir -p "$RUN_DIR"
       run_stage "$STAGE_TYPE" "$SESSION" "$MAX_ITERATIONS" "$RUN_DIR" "0" "$START_ITERATION"
     else
-      run_pipeline "$PIPELINE_FILE" "$SESSION"
+      run_pipeline "$PIPELINE_FILE" "$SESSION" "$START_STAGE" "$START_ITERATION"
     fi
     ;;
 

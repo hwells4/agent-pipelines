@@ -128,11 +128,29 @@ execute_codex() {
 
 # Execute an agent with provider abstraction
 # Usage: execute_agent "$provider" "$prompt" "$model" "$output_file"
+# Set MOCK_MODE=true to return mock responses instead of calling real agent
 execute_agent() {
   local provider=$1
   local prompt=$2
   local model=$3
   local output_file=$4
+
+  # Mock mode for testing - return mock response without calling real agent
+  # Requires mock.sh to be sourced first (get_mock_response, write_mock_status)
+  if [ "$MOCK_MODE" = true ]; then
+    local iteration=${MOCK_ITERATION:-1}
+    local response
+    if type get_mock_response &>/dev/null; then
+      response=$(get_mock_response "$iteration")
+    else
+      response="Mock response for iteration $iteration"
+    fi
+    if [ -n "$output_file" ]; then
+      echo "$response" > "$output_file"
+    fi
+    echo "$response"
+    return 0
+  fi
 
   # Validate prompt is not empty
   if [ -z "$prompt" ]; then
