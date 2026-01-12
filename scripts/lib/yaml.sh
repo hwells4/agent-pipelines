@@ -15,11 +15,7 @@ yaml_to_json() {
   if command -v yq &>/dev/null; then
     yq -o=json "$file"
   elif python3 -c "import yaml" &>/dev/null 2>&1; then
-    python3 -c "
-import sys, json, yaml
-with open('$file') as f:
-    print(json.dumps(yaml.safe_load(f)))
-"
+    python3 -c "import sys, json, yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))" "$file"
   else
     echo "Error: Need yq or python3 with PyYAML" >&2
     return 1

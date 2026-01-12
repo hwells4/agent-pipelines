@@ -8,7 +8,11 @@ notify() {
   local message=$2
 
   if command -v osascript &>/dev/null; then
-    # macOS
+    # macOS - escape backslashes and quotes to prevent AppleScript injection
+    title="${title//\\/\\\\}"
+    title="${title//\"/\\\"}"
+    message="${message//\\/\\\\}"
+    message="${message//\"/\\\"}"
     osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
   elif command -v notify-send &>/dev/null; then
     # Linux

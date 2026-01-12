@@ -44,6 +44,7 @@ source "$LIB_DIR/context.sh"
 source "$LIB_DIR/status.sh"
 source "$LIB_DIR/notify.sh"
 source "$LIB_DIR/lock.sh"
+source "$LIB_DIR/validate.sh"
 
 # Export for hooks
 export CLAUDE_LOOP_AGENT=1
@@ -635,6 +636,11 @@ case "$MODE" in
       fi
     fi
 
+    # Validate session name for security (prevent path traversal, injection)
+    if ! validate_session_name "$SESSION"; then
+      exit 1
+    fi
+
     # Determine run directory and state file for pipeline
     RUN_DIR="$PROJECT_ROOT/.claude/pipeline-runs/$SESSION"
     STATE_FILE="$RUN_DIR/state.json"
@@ -677,6 +683,9 @@ case "$MODE" in
   status)
     # Show status of a session
     SESSION=${1:?"Usage: engine.sh status <session>"}
+    if ! validate_session_name "$SESSION"; then
+      exit 1
+    fi
     STATE_FILE=$(get_state_file_path "$SESSION")
     RUN_DIR="$PROJECT_ROOT/.claude/pipeline-runs/$SESSION"
 

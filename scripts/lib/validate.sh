@@ -11,6 +11,33 @@
 VALIDATE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$VALIDATE_SCRIPT_DIR/yaml.sh"
 
+# Validate a session name for safety
+# Usage: validate_session_name "session-name"
+# Returns: 0 if valid, 1 if invalid
+validate_session_name() {
+  local name=$1
+
+  # Check for empty
+  if [ -z "$name" ]; then
+    echo "Error: Session name cannot be empty" >&2
+    return 1
+  fi
+
+  # Check length (max 64 chars)
+  if [ ${#name} -gt 64 ]; then
+    echo "Error: Session name too long (max 64 characters)" >&2
+    return 1
+  fi
+
+  # Check for valid characters (alphanumeric, underscore, hyphen)
+  if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: Session name must contain only alphanumeric characters, underscores, and hyphens" >&2
+    return 1
+  fi
+
+  return 0
+}
+
 # Known template variables (including v3 variables: CTX, STATUS)
 KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS"
 
