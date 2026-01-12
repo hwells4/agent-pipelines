@@ -1,6 +1,6 @@
 ---
 name: pipeline-designer
-description: Transform user intent into validated pipeline architectures. Use when user wants to build a pipeline, asks about pipeline design, or describes an iterative workflow they want to create.
+description: Transform user intent into validated pipeline architectures. Use when user wants to build a NEW pipeline or learn about the pipeline system.
 ---
 
 ## What This Skill Does
@@ -15,7 +15,8 @@ Trigger on:
 - "I want to build a pipeline that..."
 - "Create a loop/pipeline for..."
 - "How should I structure an iterative workflow for..."
-- `/pipeline` command
+- "What termination strategies are available?"
+- "How do pipelines work?"
 
 ## Intake
 
@@ -28,7 +29,6 @@ Use AskUserQuestion to route the request:
     "header": "Intent",
     "options": [
       {"label": "Build a Pipeline", "description": "Create something new - I'll help you design it"},
-      {"label": "Edit Existing", "description": "Modify an existing stage or pipeline config"},
       {"label": "Ask Questions", "description": "Learn about the pipeline system"}
     ],
     "multiSelect": false
@@ -41,7 +41,6 @@ Use AskUserQuestion to route the request:
 | Response | Workflow |
 |----------|----------|
 | "Build a Pipeline" | `workflows/build.md` |
-| "Edit Existing" | `workflows/edit.md` |
 | "Ask Questions" | `workflows/questions.md` |
 
 ## Build Workflow Summary
@@ -155,7 +154,6 @@ Task(
 | Workflow | Purpose |
 |----------|---------|
 | build.md | Design new pipeline architecture |
-| edit.md | Modify existing configuration |
 | questions.md | Answer questions about the system |
 
 ## Success Criteria
