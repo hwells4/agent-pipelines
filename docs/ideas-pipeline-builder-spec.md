@@ -654,3 +654,244 @@ On restore:
 **Why now:** As iterations do more work (especially work stages that modify many files), mid-iteration failures become costly. Savepoints provide insurance against lost work. This is especially critical for expensive Opus iterations that might run for minutes.
 
 ---
+
+## Ideas from pipeline-builder-spec - Iteration 5
+
+> Focus: Collaboration, governance, and human-agent partnership—how teams work together on pipelines and how humans and agents can collaborate more effectively
+
+---
+
+### 21. Pipeline Approval Workflows for Team Governance
+
+**Problem:** When one person creates a pipeline, there's no review process before it consumes team resources. A junior developer might create an expensive 50-iteration Opus pipeline without understanding the cost implications. Organizations need approval gates without slowing down individual experimentation.
+
+**Solution:** Add approval workflow configuration:
+```yaml
+# .claude/governance/approval-rules.yaml
+rules:
+  - condition:
+      or:
+        - estimated_tokens: "> 100000"
+        - stages_count: "> 3"
+        - uses_model: "opus"
+    requires:
+      approvers: ["@senior-dev", "@team-lead"]
+      min_approvals: 1
+
+  - condition:
+      estimated_cost: "> $5"
+    requires:
+      approvers: ["@finance-admin"]
+      min_approvals: 1
+```
+
+Workflow:
+1. Pipeline designer calculates estimated resource usage
+2. If rules trigger, pipeline enters pending state
+3. Designated approvers review via `/pipeline review {id}`
+4. Approved pipelines can be executed; rejected ones return feedback
+5. Authors with sufficient track record can be auto-approved
+
+**Why now:** The pipeline-builder democratizes pipeline creation. Without governance, this leads to uncontrolled resource consumption. Approval workflows enable delegation while maintaining oversight—essential for team adoption.
+
+---
+
+### 22. Collaborative Pipeline Editing with Live Presence
+
+**Problem:** Pipeline design is inherently collaborative—architects, domain experts, and implementers all have insights. But current workflows are single-user. When two people want to iterate on a pipeline design, they must take turns or coordinate out-of-band.
+
+**Solution:** Add collaborative editing support:
+```bash
+# Start collaborative session
+./scripts/run.sh collaborate {session} --share
+
+# Returns shareable link
+Collaboration session started: https://pipeline.local/collab/abc123
+Share this link with collaborators (requires same network)
+```
+
+Collaboration features:
+- **Live presence**: See who's viewing the pipeline spec
+- **Annotation mode**: Leave comments on specific stages or configuration choices
+- **Suggestion mode**: Propose changes that the owner can accept/reject
+- **Voice notes**: Quick audio annotations for complex reasoning
+
+For async collaboration:
+```bash
+./scripts/run.sh pipeline review-request {pipeline} \
+  --reviewer=@senior-dev \
+  --message="Please review the termination strategy choice"
+```
+
+**Why now:** The pipeline-builder creates artifacts (specs, stages) that benefit from review. Current git-based review (PRs) is too heavyweight for rapid iteration. Lightweight collaboration accelerates design convergence.
+
+---
+
+### 23. Agent Handoff Notes for Human Takeover
+
+**Problem:** When a pipeline stalls, errors, or produces unexpected results, a human must take over. But the agent's context—why it made decisions, what alternatives it considered, what it was about to try—is lost. The human starts cold, wasting time rediscovering the agent's mental state.
+
+**Solution:** Add structured handoff documentation that agents maintain:
+```json
+// .claude/pipeline-runs/{session}/handoff.json
+{
+  "current_focus": "Refactoring authentication module",
+  "decision_log": [
+    {
+      "iteration": 5,
+      "decision": "Chose JWT over session-based auth",
+      "reasoning": "User mentioned API-first architecture",
+      "alternatives_considered": ["session-based", "OAuth only"],
+      "confidence": 0.85
+    }
+  ],
+  "blocked_on": {
+    "issue": "Unclear if rate limiting should be per-user or per-API-key",
+    "question_for_human": "Which rate limiting strategy do you prefer?",
+    "context": "Found conflicting patterns in existing code"
+  },
+  "next_steps_if_continued": [
+    "Implement token refresh endpoint",
+    "Add rate limiting (pending clarification)",
+    "Write integration tests"
+  ],
+  "files_to_review": ["src/auth/jwt.ts", "src/middleware/rate-limit.ts"]
+}
+```
+
+On pipeline pause/error:
+```
+$ ./scripts/run.sh takeover auth-feature
+
+Agent Handoff Summary:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Current Focus: Refactoring authentication module
+
+Blocked On: Rate limiting strategy unclear
+Question for you: Per-user or per-API-key rate limiting?
+
+Recent Decisions:
+- Chose JWT over session-based (confidence: 85%)
+- ...
+
+Suggested Next Steps:
+1. Clarify rate limiting approach
+2. Review: src/auth/jwt.ts (major changes)
+3. Continue implementation
+
+Commands:
+  [c]ontinue  - Resume pipeline with answer
+  [r]eview    - Review changed files
+  [a]bort     - Stop and preserve state
+```
+
+**Why now:** Human-agent collaboration is a loop, not a handoff. When agents get stuck, clean handoff documentation enables seamless human intervention. This is the difference between "agent failed" and "agent and human collaborated."
+
+---
+
+### 24. Pipeline Templates with Team Conventions
+
+**Problem:** Teams develop patterns for how they structure pipelines—certain stage orderings, preferred termination strategies, naming conventions. But each new pipeline starts from scratch. Knowledge stays in individuals' heads rather than being encoded in reusable templates.
+
+**Solution:** Add team template system:
+```yaml
+# .claude/templates/team-standard.yaml
+name: team-standard
+description: Our standard feature implementation pipeline
+author: "@team-lead"
+tags: [production, reviewed]
+
+template:
+  stages:
+    - name: plan-${feature}
+      loop: improve-plan
+      runs: 5
+      description: "Refine the implementation plan"
+
+    - name: implement-${feature}
+      loop: work
+      runs: 15
+      inputs:
+        from: plan-${feature}
+
+    - name: review-${feature}
+      loop: elegance
+      runs: 3
+      checkpoint: true  # Human review before final stage
+
+  defaults:
+    model: sonnet
+    retry:
+      max_attempts: 3
+
+  conventions:
+    session_naming: "{ticket}-{feature}"
+    required_labels: ["loop/${feature}"]
+```
+
+Usage:
+```bash
+./scripts/run.sh pipeline from-template team-standard \
+  --feature=auth \
+  --ticket=JIRA-123
+```
+
+Template discovery:
+```bash
+./scripts/run.sh templates list
+./scripts/run.sh templates inspect team-standard
+```
+
+Architecture agent suggests templates:
+```
+Recommendation: Use "team-standard" template (91% match to your requirements)
+Modifications needed:
+- Increase plan iterations to 8 (complex feature)
+- Add security-review stage after implementation
+```
+
+**Why now:** The pipeline-builder creates pipelines from scratch every time. Templates capture team learning and accelerate creation. Over time, the template library becomes a codified best-practices repository.
+
+---
+
+### 25. Agent Reflection Prompts for Continuous Improvement
+
+**Problem:** Agents complete iterations and move on. There's no mechanism for agents to reflect on what worked, what didn't, and what they'd do differently. Learning happens at the system level (analytics, corpus analysis) but not at the individual execution level.
+
+**Solution:** Add optional reflection prompts at stage boundaries:
+```yaml
+# In loop.yaml
+reflection:
+  enabled: true
+  trigger: on_stage_complete  # or: every_n_iterations: 3
+```
+
+When triggered, the engine injects a reflection prompt:
+```markdown
+## Reflection Checkpoint
+
+Before moving to the next stage, pause and reflect:
+
+1. **What worked well this stage?**
+   - Which approaches were most effective?
+   - What decisions do you feel confident about?
+
+2. **What could have gone better?**
+   - Where did you get stuck or backtrack?
+   - What would you do differently next time?
+
+3. **Insights for future agents?**
+   - What patterns should be reused?
+   - What anti-patterns should be avoided?
+
+Write your reflection to: ${REFLECTION_FILE}
+```
+
+Reflections are stored in `.claude/reflections/{session}/` and:
+- Fed to the architecture agent for future recommendations
+- Aggregated for prompt effectiveness scoring
+- Available for human review during pipeline debugging
+
+**Why now:** The pipeline-builder creates stages that run repeatedly. Reflection prompts create a feedback loop where agents actively contribute to system improvement. This is meta-learning—agents helping future agents be better.
+
+---
