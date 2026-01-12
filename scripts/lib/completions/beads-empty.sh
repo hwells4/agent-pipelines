@@ -17,7 +17,7 @@ check_completion() {
   fi
 
   local remaining
-  remaining=$(bd ready --label="loop/$session" 2>/dev/null | grep -c "^") || remaining=0
+  remaining=$(bd ready --label="pipeline/$session" 2>/dev/null | grep -c "^") || remaining=0
 
   if [ "$remaining" -eq 0 ]; then
     echo "All beads complete"

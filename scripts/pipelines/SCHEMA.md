@@ -62,7 +62,7 @@ Use these in your prompts - they're resolved at runtime:
 
 - **none** (default): Run exactly `runs` times
 - **plateau**: Stop when 2 consecutive runs output `PLATEAU: true`
-- **beads-empty**: Stop when `bd ready --label=loop/${SESSION}` returns 0
+- **beads-empty**: Stop when `bd ready --label=pipeline/${SESSION}` returns 0
 
 ## Providers
 
@@ -80,8 +80,8 @@ Use these in your prompts - they're resolved at runtime:
 name: full-refine
 stages:
   - name: improve-plan
-    stage: improve-plan    # Uses loops/improve-plan/prompt.md
-    runs: 5               # Inherits completion: plateau from loop
+    stage: improve-plan    # Uses stages/improve-plan/prompt.md
+    runs: 5               # Inherits termination from stage.yaml
 
   - name: refine-beads
     stage: refine-beads

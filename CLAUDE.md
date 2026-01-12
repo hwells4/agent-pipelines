@@ -53,9 +53,9 @@ Skills are Claude Code extensions in `skills/`. Each provides specialized workfl
 ### Skill Structure
 
 Each skill in `skills/{name}/` contains:
-- `SKILL.md` - Skill definition with intake, routing, and success criteria
-- `workflows/` - Step-by-step workflow files
-- `references/` - Supporting documentation
+- `SKILL.md` - Skill definition with intake, routing, and success criteria (required)
+- `workflows/` - Step-by-step workflow files (optional, for multi-step skills)
+- `references/` - Supporting documentation (optional)
 
 ## Slash Commands
 
@@ -88,12 +88,15 @@ scripts/
 │   ├── resolve.sh            # Template variable resolution
 │   ├── notify.sh             # Desktop notifications + logging
 │   ├── lock.sh               # Session locking (prevents duplicates)
+│   ├── validate.sh           # Lint and dry-run validation
+│   ├── test.sh               # Test framework utilities
+│   ├── mock.sh               # Mock execution for testing
 │   └── completions/          # Termination strategies
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions (single-stage pipeline configs)
-│   ├── work/                 # Implementation (fixed termination)
+│   ├── work/                 # Traditional Ralph loop (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-beads/         # Bead refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
@@ -102,7 +105,13 @@ scripts/
 │   ├── readme-sync/          # Documentation sync (fixed termination)
 │   └── robot-mode/           # Agent-friendly CLI design (fixed termination)
 └── pipelines/                # Multi-stage pipeline configs
-    └── *.yaml
+    ├── quick-refine.yaml     # 3+3 iterations
+    ├── full-refine.yaml      # 5+5 iterations
+    ├── deep-refine.yaml      # 8+8 iterations
+    └── templates/            # Example pipeline templates
+        ├── code-review.yaml
+        ├── ideate.yaml
+        └── research-implement.yaml
 
 skills/                       # Claude Code skill extensions
 commands/                     # Slash command documentation
@@ -226,10 +235,15 @@ termination:
   type: judgment        # queue, judgment, or fixed
   min_iterations: 2     # for judgment: start checking after this many
   consensus: 2          # for judgment: consecutive stops needed
+  iterations: 3         # for fixed: default max iterations (optional)
 
 delay: 3                # seconds between iterations
+
+# Optional fields:
+prompt: prompts/custom.md           # custom prompt path (default: prompt.md)
+output_path: docs/output-${SESSION}.md  # direct output to specific file
 ```
-3. Add `prompt.md` with template using v3 variables (`${CTX}`, `${PROGRESS}`, `${STATUS}`)
+3. Add `prompt.md` (or custom path) with template using v3 variables (`${CTX}`, `${PROGRESS}`, `${STATUS}`)
 4. Ensure prompt instructs agent to write `status.json` with decision
 5. Run verification: `./scripts/run.sh lint loop {name}`
 

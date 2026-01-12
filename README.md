@@ -246,12 +246,15 @@ scripts/
 │   ├── resolve.sh            # Template variable resolution
 │   ├── notify.sh             # Desktop notifications + logging
 │   ├── lock.sh               # Session locking (prevents duplicates)
+│   ├── validate.sh           # Lint and dry-run validation
+│   ├── test.sh               # Test framework utilities
+│   ├── mock.sh               # Mock execution for testing
 │   └── completions/          # Termination strategies
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions
-│   ├── work/                 # Implementation (fixed termination)
+│   ├── work/                 # Traditional Ralph loop (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-beads/         # Bead refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
@@ -263,7 +266,11 @@ scripts/
     ├── SCHEMA.md             # Pipeline schema reference
     ├── quick-refine.yaml     # 3+3 iterations
     ├── full-refine.yaml      # 5+5 iterations
-    └── deep-refine.yaml      # 8+8 iterations
+    ├── deep-refine.yaml      # 8+8 iterations
+    └── templates/            # Example pipeline templates
+        ├── code-review.yaml
+        ├── ideate.yaml
+        └── research-implement.yaml
 
 skills/                       # Claude Code skill extensions
 commands/                     # Slash command documentation
@@ -305,8 +312,16 @@ description: Brainstorm improvements
 
 termination:
   type: fixed                 # Runs exactly N times, or until agent writes decision: stop
+  iterations: 3               # Default max iterations (optional, overridden by CLI arg)
 
 delay: 1
+```
+
+Optional fields for any stage:
+
+```yaml
+prompt: prompts/custom.md           # Custom prompt path (default: prompt.md)
+output_path: docs/output-${SESSION}.md  # Direct output to specific file
 ```
 
 ### v3 Status Format
