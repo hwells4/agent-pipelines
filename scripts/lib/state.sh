@@ -185,3 +185,117 @@ mark_complete() {
      '.status = $status | .completed_at = $ts | .completion_reason = $reason | .iteration_started = null' \
      "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
 }
+
+#-------------------------------------------------------------------------------
+# Session Status (for crash recovery)
+#-------------------------------------------------------------------------------
+
+# Global variable for status details
+SESSION_STATUS_DETAILS=""
+
+# Get session status
+# Usage: get_session_status "$session" "$state_file"
+# Returns: "none", "active", "failed", "completed"
+# Sets: SESSION_STATUS_DETAILS with human-readable info
+get_session_status() {
+  local session=$1
+  local state_file=$2
+  local lock_file="${PROJECT_ROOT:-.}/.claude/locks/${session}.lock"
+
+  SESSION_STATUS_DETAILS=""
+
+  # Check if state file exists
+  if [ ! -f "$state_file" ]; then
+    SESSION_STATUS_DETAILS="No previous session found"
+    echo "none"
+    return
+  fi
+
+  # Check status in state file
+  local state_status=$(jq -r '.status // "unknown"' "$state_file" 2>/dev/null)
+
+  if [ "$state_status" = "completed" ]; then
+    local completed_at=$(jq -r '.completed_at // "unknown"' "$state_file" 2>/dev/null)
+    local reason=$(jq -r '.completion_reason // "unknown"' "$state_file" 2>/dev/null)
+    SESSION_STATUS_DETAILS="Completed at $completed_at (reason: $reason)"
+    echo "completed"
+    return
+  fi
+
+  # Check if lock exists
+  if [ -f "$lock_file" ]; then
+    local pid=$(jq -r '.pid // empty' "$lock_file" 2>/dev/null)
+    local started=$(jq -r '.started_at // "unknown"' "$lock_file" 2>/dev/null)
+
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      SESSION_STATUS_DETAILS="Running since $started (PID $pid)"
+      echo "active"
+      return
+    else
+      # Lock exists but PID dead = crashed
+      local last_iter=$(jq -r '.iteration // 0' "$state_file" 2>/dev/null)
+      SESSION_STATUS_DETAILS="Crashed at iteration $last_iter (PID $pid no longer running)"
+      echo "failed"
+      return
+    fi
+  fi
+
+  # No lock but status is "running" = crashed without lock
+  if [ "$state_status" = "running" ]; then
+    local last_iter=$(jq -r '.iteration // 0' "$state_file" 2>/dev/null)
+    SESSION_STATUS_DETAILS="Crashed at iteration $last_iter (no lock file found)"
+    echo "failed"
+    return
+  fi
+
+  SESSION_STATUS_DETAILS="Unknown state"
+  echo "none"
+}
+
+# Get crash recovery info
+# Usage: get_crash_info "$session" "$state_file"
+# Sets: CRASH_LAST_ITERATION, CRASH_LAST_COMPLETED
+get_crash_info() {
+  local session=$1
+  local state_file=$2
+
+  CRASH_LAST_ITERATION=$(jq -r '.iteration // 0' "$state_file" 2>/dev/null)
+  CRASH_LAST_COMPLETED=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
+}
+
+# Show crash recovery information
+# Usage: show_crash_recovery_info "$session" "$state_file" "$max_iterations"
+show_crash_recovery_info() {
+  local session=$1
+  local state_file=$2
+  local max_iterations=$3
+
+  get_crash_info "$session" "$state_file"
+
+  echo ""
+  echo "Session '$session' crashed and can be resumed."
+  echo ""
+  echo "  Last iteration started:   $CRASH_LAST_ITERATION"
+  echo "  Last iteration completed: $CRASH_LAST_COMPLETED"
+  echo ""
+  echo "To resume from iteration $((CRASH_LAST_COMPLETED + 1)):"
+  echo "  ./scripts/run.sh loop <type> $session $max_iterations --resume"
+  echo ""
+}
+
+# Show resume information
+# Usage: show_resume_info "$session" "$start_iteration" "$max_iterations"
+show_resume_info() {
+  local session=$1
+  local start_iteration=$2
+  local max_iterations=$3
+
+  echo ""
+  echo "═══════════════════════════════════════"
+  echo "  RESUMING SESSION"
+  echo "  Session: $session"
+  echo "  Starting from iteration: $start_iteration"
+  echo "  Max iterations: $max_iterations"
+  echo "═══════════════════════════════════════"
+  echo ""
+}
