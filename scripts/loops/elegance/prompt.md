@@ -4,7 +4,7 @@ Session: ${SESSION_NAME}
 Progress file: ${PROGRESS_FILE}
 Iteration: ${ITERATION}
 
-You are here to make this codebase stunningly elegant. The kind of code that if you placed it in front of Jeff Dean or Fabrice Bellard, they would be genuinely impressed by how beautiful, simple, and essential it is. Not impressed by cleverness or features, but by clarity.
+You are here to make this codebase stunningly elegant. The kind of code that if you placed it in front of Jeff Dean or Fabrice Bellard, they would be genuinely impressed by how beautiful, simple, and clear it is. Clarity adn simplicity are your north stars.
 
 This is not a checklist task. You have full latitude to explore, investigate, and use your intelligence as you see fit. Trust your instincts. Follow threads that interest you. Go deep where depth is warranted.
 
@@ -17,22 +17,42 @@ cat ${PROGRESS_FILE}
 
 ## Exploration
 
-Begin by understanding what you're exploring—whether that's a branch, a PR, a subsystem, or the entire codebase. Get the lay of the land. Understand the core architecture and how the pieces connect before judging any of them.
+Begin by understanding what you're exploring — whether that's a branch, a PR, a subsystem, or the entire codebase. Get the lay of the land. Review AGENTS.md and CLAUDE.md intenesively. Then reread them. Finally, explore the codebase. Understand the core architecture and how the pieces connect before judging any of them.
 
-Spin up subagents freely. When you encounter something that warrants deeper investigation—a suspicious abstraction, a complex subsystem, a pattern you don't fully understand—launch a targeted subagent to explore it thoroughly and report back. Manage your context wisely. Use subagents for depth; reserve your own context for synthesis and judgment.
+Spin up subagents freely. When you encounter something that warrants deeper investigation — a suspicious abstraction, a complex subsystem, a pattern you don't fully understand — launch a targeted subagent to explore it thoroughly and report back. Manage your context wisely, and use subagents for depth. Preserve your own context for synthesis and judgment.
 
 Look for what doesn't need to exist. Functions that could merge into something cleaner. Abstractions serving no real purpose. Features whose complexity outweighs their value. Machinery solving problems you don't actually have. Code fighting against itself. But also: hidden opportunities. Places where a different algorithm, data structure, or paradigm would make everything click. Ways the system could be recast to expose an obviously simpler solution.
 
 ## Output
 
-Append your findings to the progress file, then output:
+Append your findings to the progress file.
 
+### Write Status
+
+After completing your exploration, write your status to `${STATUS}`:
+
+```json
+{
+  "decision": "continue",
+  "reason": "Why there's more to uncover, or why you've found what there is to find",
+  "summary": "Sharp observations from this iteration—what you discovered, what's suspect, what could be elegant",
+  "work": {
+    "items_completed": [],
+    "files_touched": []
+  },
+  "errors": []
+}
 ```
-FINDINGS:
-- [Sharp observations from this iteration—what you discovered, what's suspect, what could be elegant]
 
+**Decision guide:**
+- `"continue"` - There's more territory to explore, patterns to investigate, or insights waiting to surface
+- `"stop"` - You've found what there is to find; further exploration would yield diminishing returns
+- `"error"` - Something blocked your exploration
+
+Also output for legacy compatibility:
+```
 PLATEAU: true/false
-REASONING: [Why there's more to uncover, or why you've found what there is to find]
+REASONING: [Same as your decision reason]
 ```
 
 Use ultrathink.

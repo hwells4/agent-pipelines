@@ -160,9 +160,8 @@ assert_json_field_exists() {
     return 1
   fi
 
-  local exists=$(jq -e "$field" "$file" 2>/dev/null && echo "yes" || echo "no")
-
-  if [ "$exists" = "yes" ]; then
+  # Check exit code directly, discard output to avoid concatenation bug
+  if jq -e "$field" "$file" >/dev/null 2>&1; then
     ((TESTS_PASSED++))
     echo -e "  ${GREEN}✓${NC} $msg"
     return 0

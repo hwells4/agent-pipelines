@@ -1,11 +1,13 @@
 #!/bin/bash
-# Completion strategy: all-items
+# Completion strategy: all-items (v3)
 # Complete when all items in a list have been processed
+#
+# v3: Accepts status file parameter for consistency (not used)
 
 check_completion() {
   local session=$1
   local state_file=$2
-  local output=$3
+  local status_file=$3  # v3: Accepted for API consistency, not used
 
   local iteration=$(get_state "$state_file" "iteration")
   local item_count=$(echo "$ITEMS" | wc -w | tr -d ' ')

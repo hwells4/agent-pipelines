@@ -67,6 +67,28 @@ If no verification commands specified, skip this step.
 
    Add new patterns to **Codebase Patterns** section at top of progress file.
 
+## Write Status
+
+After completing your work, write your status to `${STATUS}`:
+
+```json
+{
+  "decision": "continue",
+  "reason": "Completed [bead-id], more work remains",
+  "summary": "What was implemented this iteration",
+  "work": {
+    "items_completed": ["bead-id"],
+    "files_touched": ["path/to/modified/files"]
+  },
+  "errors": []
+}
+```
+
+**Decision guide:**
+- `"continue"` - Work completed, but more beads remain
+- `"stop"` - All beads complete (queue empty)
+- `"error"` - Something went wrong (tests fail, blocked, etc.)
+
 ## Stop Condition
 
 Check if any work remains:
@@ -74,9 +96,9 @@ Check if any work remains:
 bd ready --label=loop/${SESSION_NAME}
 ```
 
-If no stories returned (empty output), all work is complete:
+If no stories returned (empty output), all work is complete. Set decision to "stop" in your status.
+
+For legacy compatibility, also output:
 ```
 <promise>COMPLETE</promise>
 ```
-
-Otherwise, end normally after completing ONE story.

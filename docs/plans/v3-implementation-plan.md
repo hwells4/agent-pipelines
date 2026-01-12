@@ -16,6 +16,49 @@ This plan details the implementation of the Loop Agents v3 architecture, transfo
 
 ---
 
+## 🚨 MANDATORY: Test-Driven Development
+
+> **THIS IS NOT OPTIONAL.** Every phase includes a "⚠️ TDD REQUIREMENT" section.
+> You MUST complete those steps BEFORE writing implementation code.
+
+### The TDD Contract
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  FOR EVERY PHASE:                                               │
+│                                                                 │
+│  1. WRITE TESTS FIRST     → Create test file with assertions   │
+│  2. VERIFY TESTS FAIL     → Run tests, confirm they fail       │
+│  3. IMPLEMENT CODE        → Write the minimum to pass tests    │
+│  4. VERIFY TESTS PASS     → Run tests, confirm they pass       │
+│  5. RUN FULL TEST SUITE   → Ensure no regressions              │
+│                                                                 │
+│  ❌ WRONG: "Let me implement status.sh first..."               │
+│  ✅ RIGHT: "Let me write test_status.sh first..."              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Matters
+
+- **Tests define the contract** - They specify what the code should do before it exists
+- **Tests catch regressions** - Changes that break existing behavior are caught immediately
+- **Tests enable refactoring** - Confident changes because tests verify correctness
+- **Tests document intent** - Future readers understand expected behavior
+
+### Quick Reference: Test Files by Phase
+
+| Phase | Test File | Tests |
+|-------|-----------|-------|
+| 0 | `test_infrastructure.sh`, `test_mock.sh`, `test_fixtures.sh`, `test_validation.sh` | ✅ Complete |
+| 1 | `test_context.sh` | ✅ Complete |
+| 2 | `test_status.sh`, `test_completions.sh` | Write FIRST |
+| 3 | `test_engine_snapshots.sh` | Write FIRST |
+| 4 | `test_inputs.sh` | Write FIRST |
+| 5 | `test_failure.sh` | Write FIRST |
+| 6 | `test_regression.sh` | Write FIRST |
+
+---
+
 ## Existing Test Infrastructure
 
 The codebase already has validation tools we can leverage:
@@ -26,18 +69,37 @@ The codebase already has validation tools we can leverage:
 | **Lint specific** | `./scripts/run.sh lint loop work` | Validate one loop |
 | **Dry-run** | `./scripts/run.sh dry-run loop work auth` | Preview execution without Claude |
 | **Status** | `./scripts/run.sh status <session>` | Check session state |
+| **Test** | `./scripts/run.sh test` | Run all tests |
+| **Test specific** | `./scripts/run.sh test status` | Run specific test file |
 
 **Validation rules defined in `scripts/lib/validate.sh`:**
 - L001-L013: Loop validation rules
 - P001-P012: Pipeline validation rules
 
-### TDD Strategy
+### TDD Workflow (Detailed)
 
 For each phase:
-1. **Update validation rules first** - Add new rules for v3 schema
-2. **Write tests that fail** - Dry-run should show new format works
-3. **Implement the change** - Make tests pass
-4. **Run lint on all stages** - Ensure nothing broke
+
+```bash
+# Step 1: Write test file
+# Create scripts/tests/test_{module}.sh with failing tests
+
+# Step 2: Verify tests fail
+./scripts/run.sh test {module}
+# Expected: Tests fail or error (code doesn't exist yet)
+
+# Step 3: Implement code
+# Write scripts/lib/{module}.sh
+
+# Step 4: Verify tests pass
+./scripts/run.sh test {module}
+# Expected: All tests pass
+
+# Step 5: Full regression check
+./scripts/run.sh test
+./scripts/run.sh lint
+# Expected: All tests pass, all configs valid
+```
 
 ---
 
@@ -340,9 +402,196 @@ local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$context_file")
 
 ---
 
-### Phase 2: Universal Status Format
+### Phase 2: Universal Status Format ✅ COMPLETE
 
 **Goal:** Every agent writes the same `status.json` format with `decision: continue|stop|error`.
+
+**Completed 2025-01-11:**
+- Created `scripts/lib/status.sh` with validation and management functions
+- Fixed `assert_json_field_exists` bug in test.sh
+- Created `scripts/tests/test_status.sh` (39 tests) and `scripts/tests/test_completions.sh` (9 tests)
+- Updated all completion strategies to accept status_file parameter
+- Updated engine.sh to pass status_file to check_completion and store decision in history
+- Updated all prompts: improve-plan, elegance, work, idea-wizard, refine-beads
+- All 47 tests pass, lint validation passes
+
+---
+
+#### ⚠️ TDD REQUIREMENT: Write Tests First
+
+**STOP. Before writing ANY implementation code, complete these steps:**
+
+##### Step 0.1: Create `scripts/tests/test_status.sh`
+
+```bash
+#!/bin/bash
+# Tests for status.sh - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+
+#-------------------------------------------------------------------------------
+# Status Validation Tests
+#-------------------------------------------------------------------------------
+
+test_validate_status_missing_file() {
+  validate_status "/nonexistent/path.json" 2>/dev/null
+  local result=$?
+  assert_eq "1" "$result" "validate_status fails for missing file"
+}
+
+test_validate_status_valid_continue() {
+  local tmp=$(mktemp)
+  echo '{"decision": "continue", "reason": "test"}' > "$tmp"
+  validate_status "$tmp"
+  local result=$?
+  rm -f "$tmp"
+  assert_eq "0" "$result" "validate_status accepts 'continue'"
+}
+
+test_validate_status_valid_stop() {
+  local tmp=$(mktemp)
+  echo '{"decision": "stop", "reason": "test"}' > "$tmp"
+  validate_status "$tmp"
+  local result=$?
+  rm -f "$tmp"
+  assert_eq "0" "$result" "validate_status accepts 'stop'"
+}
+
+test_validate_status_valid_error() {
+  local tmp=$(mktemp)
+  echo '{"decision": "error", "reason": "test"}' > "$tmp"
+  validate_status "$tmp"
+  local result=$?
+  rm -f "$tmp"
+  assert_eq "0" "$result" "validate_status accepts 'error'"
+}
+
+test_validate_status_invalid_decision() {
+  local tmp=$(mktemp)
+  echo '{"decision": "invalid", "reason": "test"}' > "$tmp"
+  validate_status "$tmp" 2>/dev/null
+  local result=$?
+  rm -f "$tmp"
+  assert_eq "1" "$result" "validate_status rejects invalid decision"
+}
+
+test_validate_status_missing_decision() {
+  local tmp=$(mktemp)
+  echo '{"reason": "no decision field"}' > "$tmp"
+  validate_status "$tmp" 2>/dev/null
+  local result=$?
+  rm -f "$tmp"
+  assert_eq "1" "$result" "validate_status rejects missing decision"
+}
+
+test_get_status_decision() {
+  local tmp=$(mktemp)
+  echo '{"decision": "stop", "reason": "test"}' > "$tmp"
+  local decision=$(get_status_decision "$tmp")
+  rm -f "$tmp"
+  assert_eq "stop" "$decision" "get_status_decision extracts decision"
+}
+
+test_get_status_reason() {
+  local tmp=$(mktemp)
+  echo '{"decision": "stop", "reason": "my reason here"}' > "$tmp"
+  local reason=$(get_status_reason "$tmp")
+  rm -f "$tmp"
+  assert_eq "my reason here" "$reason" "get_status_reason extracts reason"
+}
+
+test_create_error_status() {
+  local tmp=$(mktemp)
+  create_error_status "$tmp" "Test error message"
+  local decision=$(jq -r '.decision' "$tmp")
+  local reason=$(jq -r '.reason' "$tmp")
+  rm -f "$tmp"
+  assert_eq "error" "$decision" "create_error_status sets decision=error"
+  assert_eq "Test error message" "$reason" "create_error_status sets reason"
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "validate_status missing file" test_validate_status_missing_file
+run_test "validate_status valid continue" test_validate_status_valid_continue
+run_test "validate_status valid stop" test_validate_status_valid_stop
+run_test "validate_status valid error" test_validate_status_valid_error
+run_test "validate_status invalid decision" test_validate_status_invalid_decision
+run_test "validate_status missing decision" test_validate_status_missing_decision
+run_test "get_status_decision" test_get_status_decision
+run_test "get_status_reason" test_get_status_reason
+run_test "create_error_status" test_create_error_status
+```
+
+##### Step 0.2: Create `scripts/tests/test_completions.sh`
+
+```bash
+#!/bin/bash
+# Tests for completion strategies - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+source "$SCRIPT_DIR/lib/mock.sh"
+
+#-------------------------------------------------------------------------------
+# Plateau Completion Tests
+#-------------------------------------------------------------------------------
+
+test_plateau_needs_min_iterations() {
+  # Setup: iteration 1, min_iterations=2
+  # Expected: return 1 (don't stop yet)
+}
+
+test_plateau_single_stop_not_enough() {
+  # Setup: iteration 2, current says stop, previous said continue
+  # Expected: return 1 (need consensus)
+}
+
+test_plateau_two_consecutive_stops() {
+  # Setup: iteration 3, current says stop, previous said stop
+  # Expected: return 0 (consensus reached)
+}
+
+test_plateau_reads_from_status_json() {
+  # Setup: status.json with decision: stop
+  # Expected: reads decision correctly, not from output parsing
+}
+
+#-------------------------------------------------------------------------------
+# Beads-Empty Completion Tests
+#-------------------------------------------------------------------------------
+
+test_beads_empty_with_remaining() {
+  # Setup: bd ready returns items
+  # Expected: return 1 (keep going)
+}
+
+test_beads_empty_with_none() {
+  # Setup: bd ready returns nothing
+  # Expected: return 0 (complete)
+}
+
+test_beads_empty_ignores_error_status() {
+  # Setup: status.json has decision: error
+  # Expected: return 1 (don't complete on error)
+}
+```
+
+##### Step 0.3: Verify Tests Fail
+
+```bash
+# Run the new tests - they MUST fail because status.sh doesn't exist yet
+./scripts/run.sh test status
+# Expected: "source: scripts/lib/status.sh: No such file or directory" or similar
+
+./scripts/run.sh test completions
+# Expected: Tests fail because completion strategies don't read status.json yet
+```
+
+**✅ CHECKPOINT: Tests written and failing. NOW proceed to implementation.**
+
+---
 
 #### 2.1 Define Status Schema
 
@@ -569,6 +818,76 @@ After completing your work, write your status to `${STATUS}`:
 
 **Goal:** Engine automatically saves iteration outputs to `iterations/NNN/output.md`.
 
+---
+
+#### ⚠️ TDD REQUIREMENT: Write Tests First
+
+**STOP. Before writing ANY implementation code, complete these steps:**
+
+##### Step 0.1: Create `scripts/tests/test_engine_snapshots.sh`
+
+```bash
+#!/bin/bash
+# Tests for engine output snapshots - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+source "$SCRIPT_DIR/lib/mock.sh"
+
+#-------------------------------------------------------------------------------
+# Output Snapshot Tests
+#-------------------------------------------------------------------------------
+
+test_iteration_creates_output_snapshot() {
+  # Setup: Run mock iteration
+  # Expected: iterations/001/output.md exists
+  local tmp=$(create_test_dir)
+  # ... setup mock execution ...
+  assert_file_exists "$tmp/stage-00-test/iterations/001/output.md" "Output snapshot created"
+  cleanup_test_dir "$tmp"
+}
+
+test_multiple_iterations_preserve_history() {
+  # Setup: Run 3 mock iterations
+  # Expected: iterations/001/, 002/, 003/ all have output.md
+  local tmp=$(create_test_dir)
+  # ... setup mock execution ...
+  assert_file_exists "$tmp/stage-00-test/iterations/001/output.md" "Iteration 1 preserved"
+  assert_file_exists "$tmp/stage-00-test/iterations/002/output.md" "Iteration 2 preserved"
+  assert_file_exists "$tmp/stage-00-test/iterations/003/output.md" "Iteration 3 preserved"
+  cleanup_test_dir "$tmp"
+}
+
+test_missing_status_creates_error() {
+  # Setup: Mock iteration that doesn't write status.json
+  # Expected: Engine creates error status automatically
+  local tmp=$(create_test_dir)
+  # ... setup mock execution without status.json ...
+  local decision=$(jq -r '.decision' "$tmp/stage-00-test/iterations/001/status.json")
+  assert_eq "error" "$decision" "Missing status triggers error status"
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "Iteration creates output snapshot" test_iteration_creates_output_snapshot
+run_test "Multiple iterations preserve history" test_multiple_iterations_preserve_history
+run_test "Missing status creates error" test_missing_status_creates_error
+```
+
+##### Step 0.2: Verify Tests Fail
+
+```bash
+# Run the new tests - they MUST fail because engine doesn't create snapshots yet
+./scripts/run.sh test engine_snapshots
+# Expected: Assertions fail - output.md files not created
+```
+
+**✅ CHECKPOINT: Tests written and failing. NOW proceed to implementation.**
+
+---
+
 #### 3.1 Update Engine Iteration Loop
 
 **File:** `scripts/engine.sh` (modify `run_stage` function)
@@ -619,6 +938,134 @@ output: .claude                    # Internal only (default)
 ### Phase 4: Explicit Input Selection
 
 **Goal:** Stages explicitly declare what inputs they want from previous stages.
+
+---
+
+#### ⚠️ TDD REQUIREMENT: Write Tests First
+
+**STOP. Before writing ANY implementation code, complete these steps:**
+
+##### Step 0.1: Create `scripts/tests/test_inputs.sh`
+
+```bash
+#!/bin/bash
+# Tests for input selection - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+source "$SCRIPT_DIR/lib/context.sh"
+
+#-------------------------------------------------------------------------------
+# Input Resolution Tests
+#-------------------------------------------------------------------------------
+
+test_inputs_from_previous_stage_latest() {
+  # Setup: Stage 2 with inputs.from=stage1, inputs.select=latest
+  # Stage 1 has iterations 001, 002, 003
+  # Expected: inputs.from_stage.stage1 contains only iteration 003 output
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-stage1/iterations/001"
+  mkdir -p "$tmp/stage-00-stage1/iterations/002"
+  mkdir -p "$tmp/stage-00-stage1/iterations/003"
+  echo "output1" > "$tmp/stage-00-stage1/iterations/001/output.md"
+  echo "output2" > "$tmp/stage-00-stage1/iterations/002/output.md"
+  echo "output3" > "$tmp/stage-00-stage1/iterations/003/output.md"
+
+  local config='{"id":"stage2","index":1,"inputs":{"from":"stage1","select":"latest"}}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_stage.stage1 | length')
+
+  assert_eq "1" "$count" "select=latest returns single file"
+  cleanup_test_dir "$tmp"
+}
+
+test_inputs_from_previous_stage_all() {
+  # Setup: Stage 2 with inputs.from=stage1, inputs.select=all
+  # Stage 1 has iterations 001, 002, 003
+  # Expected: inputs.from_stage.stage1 contains all 3 outputs
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-stage1/iterations/001"
+  mkdir -p "$tmp/stage-00-stage1/iterations/002"
+  mkdir -p "$tmp/stage-00-stage1/iterations/003"
+  echo "output1" > "$tmp/stage-00-stage1/iterations/001/output.md"
+  echo "output2" > "$tmp/stage-00-stage1/iterations/002/output.md"
+  echo "output3" > "$tmp/stage-00-stage1/iterations/003/output.md"
+
+  local config='{"id":"stage2","index":1,"inputs":{"from":"stage1","select":"all"}}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_stage.stage1 | length')
+
+  assert_eq "3" "$count" "select=all returns all files"
+  cleanup_test_dir "$tmp"
+}
+
+test_inputs_default_is_latest() {
+  # Setup: Stage 2 with inputs.from=stage1, NO select specified
+  # Expected: Defaults to select=latest behavior
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-stage1/iterations/001"
+  mkdir -p "$tmp/stage-00-stage1/iterations/002"
+  echo "output1" > "$tmp/stage-00-stage1/iterations/001/output.md"
+  echo "output2" > "$tmp/stage-00-stage1/iterations/002/output.md"
+
+  local config='{"id":"stage2","index":1,"inputs":{"from":"stage1"}}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_stage.stage1 | length')
+
+  assert_eq "1" "$count" "default select is latest (single file)"
+  cleanup_test_dir "$tmp"
+}
+
+test_inputs_from_previous_iterations() {
+  # Setup: Stage at iteration 3
+  # Expected: from_previous_iterations contains iterations 1 and 2
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-current/iterations/001"
+  mkdir -p "$tmp/stage-00-current/iterations/002"
+  echo "iter1" > "$tmp/stage-00-current/iterations/001/output.md"
+  echo "iter2" > "$tmp/stage-00-current/iterations/002/output.md"
+
+  local config='{"id":"current","index":0}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 3)
+  local count=$(echo "$inputs" | jq '.from_previous_iterations | length')
+
+  assert_eq "2" "$count" "iteration 3 sees 2 previous iterations"
+  cleanup_test_dir "$tmp"
+}
+
+test_inputs_nonexistent_stage() {
+  # Setup: inputs.from references a stage that doesn't exist
+  # Expected: from_stage is empty object, no error
+  local tmp=$(create_test_dir)
+  local config='{"id":"stage2","index":1,"inputs":{"from":"nonexistent"}}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local from_stage=$(echo "$inputs" | jq '.from_stage')
+
+  assert_eq "{}" "$from_stage" "nonexistent stage returns empty object"
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "Inputs from previous stage (latest)" test_inputs_from_previous_stage_latest
+run_test "Inputs from previous stage (all)" test_inputs_from_previous_stage_all
+run_test "Inputs default is latest" test_inputs_default_is_latest
+run_test "Inputs from previous iterations" test_inputs_from_previous_iterations
+run_test "Inputs nonexistent stage" test_inputs_nonexistent_stage
+```
+
+##### Step 0.2: Verify Tests Fail
+
+```bash
+# Run the new tests - they MUST fail because build_inputs_json doesn't exist yet
+./scripts/run.sh test inputs
+# Expected: "build_inputs_json: command not found" or assertions fail
+```
+
+**✅ CHECKPOINT: Tests written and failing. NOW proceed to implementation.**
+
+---
 
 #### 4.1 Add Input Resolution to Context Generator
 
@@ -727,6 +1174,152 @@ stages:
 
 **Goal:** Remove retry logic, fail immediately with clear error state.
 
+---
+
+#### ⚠️ TDD REQUIREMENT: Write Tests First
+
+**STOP. Before writing ANY implementation code, complete these steps:**
+
+##### Step 0.1: Create `scripts/tests/test_failure.sh`
+
+```bash
+#!/bin/bash
+# Tests for failure handling and resume - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+source "$SCRIPT_DIR/lib/state.sh"
+source "$SCRIPT_DIR/lib/lock.sh"
+
+#-------------------------------------------------------------------------------
+# Failure State Tests
+#-------------------------------------------------------------------------------
+
+test_mark_failed_sets_status() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"session":"test","iteration":3,"iteration_completed":2}' > "$state_file"
+
+  mark_failed "$state_file" "Test error"
+  local status=$(jq -r '.status' "$state_file")
+
+  assert_eq "failed" "$status" "mark_failed sets status=failed"
+  cleanup_test_dir "$tmp"
+}
+
+test_mark_failed_includes_error_details() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"session":"test","iteration":3,"iteration_completed":2}' > "$state_file"
+
+  mark_failed "$state_file" "API timeout" "timeout"
+  local error_type=$(jq -r '.error.type' "$state_file")
+  local error_msg=$(jq -r '.error.message' "$state_file")
+
+  assert_eq "timeout" "$error_type" "mark_failed includes error type"
+  assert_eq "API timeout" "$error_msg" "mark_failed includes error message"
+  cleanup_test_dir "$tmp"
+}
+
+test_mark_failed_sets_resume_from() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"session":"test","iteration":5,"iteration_completed":4}' > "$state_file"
+
+  mark_failed "$state_file" "Crash"
+  local resume_from=$(jq -r '.resume_from' "$state_file")
+
+  assert_eq "5" "$resume_from" "resume_from = iteration_completed + 1"
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
+# Resume Tests
+#-------------------------------------------------------------------------------
+
+test_get_resume_iteration() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"session":"test","iteration":5,"iteration_completed":4}' > "$state_file"
+
+  local resume=$(get_resume_iteration "$state_file")
+  assert_eq "5" "$resume" "get_resume_iteration returns completed + 1"
+  cleanup_test_dir "$tmp"
+}
+
+test_can_resume_failed_session() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"status":"failed","iteration":5,"iteration_completed":4}' > "$state_file"
+
+  can_resume "$state_file"
+  local result=$?
+  assert_eq "0" "$result" "can_resume returns 0 for failed session"
+  cleanup_test_dir "$tmp"
+}
+
+test_cannot_resume_completed_session() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"status":"complete","iteration":5,"iteration_completed":5}' > "$state_file"
+
+  can_resume "$state_file"
+  local result=$?
+  assert_eq "1" "$result" "can_resume returns 1 for completed session"
+  cleanup_test_dir "$tmp"
+}
+
+test_reset_for_resume_clears_error() {
+  local tmp=$(create_test_dir)
+  local state_file="$tmp/state.json"
+  echo '{"status":"failed","error":{"message":"old error"}}' > "$state_file"
+
+  reset_for_resume "$state_file"
+  local status=$(jq -r '.status' "$state_file")
+  local has_error=$(jq 'has("error")' "$state_file")
+
+  assert_eq "running" "$status" "reset_for_resume sets status=running"
+  # Note: May keep error for history, but status should be running
+  cleanup_test_dir "$tmp"
+}
+
+#-------------------------------------------------------------------------------
+# No Retry Logic Tests
+#-------------------------------------------------------------------------------
+
+test_no_retry_on_failure() {
+  # This is more of an integration test
+  # Verify engine doesn't retry - fails immediately
+  # Would need mock execution to properly test
+  skip_test "Integration test - verify manually"
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "mark_failed sets status" test_mark_failed_sets_status
+run_test "mark_failed includes error details" test_mark_failed_includes_error_details
+run_test "mark_failed sets resume_from" test_mark_failed_sets_resume_from
+run_test "get_resume_iteration" test_get_resume_iteration
+run_test "can_resume failed session" test_can_resume_failed_session
+run_test "cannot resume completed session" test_cannot_resume_completed_session
+run_test "reset_for_resume clears error" test_reset_for_resume_clears_error
+run_test "No retry on failure" test_no_retry_on_failure
+```
+
+##### Step 0.2: Verify Tests Fail (or identify gaps)
+
+```bash
+# Run the new tests
+./scripts/run.sh test failure
+# Some may pass (existing state.sh functions), some should fail (new requirements)
+# Specifically: resume_from field, error.type structure may not exist yet
+```
+
+**✅ CHECKPOINT: Tests written. NOW proceed to implementation to make failing tests pass.**
+
+---
+
 #### 5.1 Remove Retry Logic from Engine
 
 **File:** `scripts/engine.sh` (modify)
@@ -811,6 +1404,137 @@ mark_failed() {
 ### Phase 6: Migration & Cleanup
 
 **Goal:** Remove deprecated code, update all stages, refresh documentation.
+
+---
+
+#### ⚠️ TDD REQUIREMENT: Regression Tests First
+
+**STOP. Before making ANY migration changes, ensure test coverage exists:**
+
+##### Step 0.1: Verify All Previous Phase Tests Pass
+
+```bash
+# ALL tests from phases 0-5 must pass before migration
+./scripts/run.sh test
+# Expected: All tests pass (status, completions, inputs, failure, etc.)
+```
+
+##### Step 0.2: Create `scripts/tests/test_regression.sh`
+
+```bash
+#!/bin/bash
+# Regression tests for v3 migration - WRITE THIS FIRST
+
+source "$SCRIPT_DIR/lib/test.sh"
+
+#-------------------------------------------------------------------------------
+# Stage Definition Tests (v3 schema)
+#-------------------------------------------------------------------------------
+
+test_work_stage_v3_schema() {
+  local config=$(yaml_to_json "$LOOPS_DIR/work/loop.yaml")
+  local term_type=$(echo "$config" | jq -r '.termination.type // empty')
+  assert_eq "queue" "$term_type" "work stage uses termination.type=queue"
+}
+
+test_improve_plan_stage_v3_schema() {
+  local config=$(yaml_to_json "$LOOPS_DIR/improve-plan/loop.yaml")
+  local term_type=$(echo "$config" | jq -r '.termination.type // empty')
+  local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
+  assert_eq "judgment" "$term_type" "improve-plan uses termination.type=judgment"
+  assert_eq "2" "$consensus" "improve-plan requires consensus=2"
+}
+
+test_elegance_stage_v3_schema() {
+  local config=$(yaml_to_json "$LOOPS_DIR/elegance/loop.yaml")
+  local term_type=$(echo "$config" | jq -r '.termination.type // empty')
+  assert_eq "judgment" "$term_type" "elegance uses termination.type=judgment"
+}
+
+test_idea_wizard_stage_v3_schema() {
+  local config=$(yaml_to_json "$LOOPS_DIR/idea-wizard/loop.yaml")
+  local term_type=$(echo "$config" | jq -r '.termination.type // empty')
+  assert_eq "fixed" "$term_type" "idea-wizard uses termination.type=fixed"
+}
+
+test_refine_beads_stage_v3_schema() {
+  local config=$(yaml_to_json "$LOOPS_DIR/refine-beads/loop.yaml")
+  local term_type=$(echo "$config" | jq -r '.termination.type // empty')
+  assert_eq "judgment" "$term_type" "refine-beads uses termination.type=judgment"
+}
+
+#-------------------------------------------------------------------------------
+# Prompt Variable Tests (v3 variables)
+#-------------------------------------------------------------------------------
+
+test_prompts_use_ctx_variable() {
+  for loop_dir in "$LOOPS_DIR"/*/; do
+    local prompt_file="$loop_dir/prompt.md"
+    [ -f "$prompt_file" ] || continue
+    local loop_name=$(basename "$loop_dir")
+    local content=$(cat "$prompt_file")
+    assert_contains "$content" '${CTX}' "$loop_name prompt uses \${CTX}"
+  done
+}
+
+test_prompts_use_status_variable() {
+  for loop_dir in "$LOOPS_DIR"/*/; do
+    local prompt_file="$loop_dir/prompt.md"
+    [ -f "$prompt_file" ] || continue
+    local loop_name=$(basename "$loop_dir")
+    local content=$(cat "$prompt_file")
+    assert_contains "$content" '${STATUS}' "$loop_name prompt uses \${STATUS}"
+  done
+}
+
+test_no_deprecated_output_parse() {
+  for loop_dir in "$LOOPS_DIR"/*/; do
+    local config_file="$loop_dir/loop.yaml"
+    [ -f "$config_file" ] || continue
+    local loop_name=$(basename "$loop_dir")
+    local content=$(cat "$config_file")
+    assert_not_contains "$content" "output_parse" "$loop_name has no deprecated output_parse"
+  done
+}
+
+#-------------------------------------------------------------------------------
+# Deprecated Code Removal Tests
+#-------------------------------------------------------------------------------
+
+test_parse_sh_marked_deprecated() {
+  local content=$(cat "$SCRIPT_DIR/lib/parse.sh" 2>/dev/null || echo "")
+  if [ -n "$content" ]; then
+    assert_contains "$content" "DEPRECATED" "parse.sh is marked as deprecated"
+  fi
+}
+
+#-------------------------------------------------------------------------------
+# Run Tests
+#-------------------------------------------------------------------------------
+
+run_test "work stage v3 schema" test_work_stage_v3_schema
+run_test "improve-plan stage v3 schema" test_improve_plan_stage_v3_schema
+run_test "elegance stage v3 schema" test_elegance_stage_v3_schema
+run_test "idea-wizard stage v3 schema" test_idea_wizard_stage_v3_schema
+run_test "refine-beads stage v3 schema" test_refine_beads_stage_v3_schema
+run_test "Prompts use CTX variable" test_prompts_use_ctx_variable
+run_test "Prompts use STATUS variable" test_prompts_use_status_variable
+run_test "No deprecated output_parse" test_no_deprecated_output_parse
+run_test "parse.sh marked deprecated" test_parse_sh_marked_deprecated
+```
+
+##### Step 0.3: Verify Regression Tests Fail (before migration)
+
+```bash
+# Run regression tests - they SHOULD fail because migration not done yet
+./scripts/run.sh test regression
+# Expected: Schema tests fail (old completion: instead of termination:)
+# Expected: Prompt variable tests fail (old ${SESSION} instead of ${CTX})
+```
+
+**✅ CHECKPOINT: Regression tests written and failing. NOW proceed to migration.**
+
+---
 
 #### 6.1 Update All Stage Definitions
 

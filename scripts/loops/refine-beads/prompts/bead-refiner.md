@@ -53,29 +53,33 @@ Append to progress file:
 - [Why you changed it]
 ```
 
-### Step 6: Plateau Decision
+### Step 6: Write Status
 
-At the END of your response, make an intelligent judgment:
+After completing your work, write your status to `${STATUS}`:
 
+```json
+{
+  "decision": "continue",
+  "reason": "Brief explanation of why work should continue or stop",
+  "summary": "One paragraph describing what you refined this iteration",
+  "work": {
+    "items_completed": [],
+    "files_touched": []
+  },
+  "errors": []
+}
+```
+
+**Decision guide:**
+- `"continue"` - You found beads that are too vague, missing acceptance criteria, dependency gaps, or scope issues
+- `"stop"` - All beads have clear titles, specific descriptions, testable acceptance criteria, and correct dependencies; they're ready for a work loop
+- `"error"` - Something went wrong that needs investigation
+
+Be honest. The goal is beads that an agent can pick up and implement confidently.
+Not perfect documentation—*implementable tasks*.
+
+Also output for legacy compatibility:
 ```
 PLATEAU: true/false
-REASONING: [Your reasoning for why work should continue or stop]
+REASONING: [Same as your decision reason]
 ```
-
-**Answer true (stop) if:**
-- All beads have clear, actionable titles
-- Descriptions are specific enough to implement
-- Acceptance criteria are testable
-- Dependencies are correct
-- Remaining improvements are cosmetic (wording tweaks, style)
-- The beads are ready for a work loop to execute
-
-**Answer false (continue) if:**
-- You found beads that are too vague to implement
-- Missing acceptance criteria on important beads
-- Dependency structure has gaps or errors
-- Scope issues (beads too big or too small)
-- You made significant changes that need verification
-
-The goal is beads that an agent can pick up and implement confidently.
-Not perfect documentation—*implementable tasks*.

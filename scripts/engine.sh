@@ -42,6 +42,7 @@ source "$LIB_DIR/progress.sh"
 source "$LIB_DIR/resolve.sh"
 source "$LIB_DIR/parse.sh"
 source "$LIB_DIR/context.sh"
+source "$LIB_DIR/status.sh"
 source "$LIB_DIR/notify.sh"
 source "$LIB_DIR/lock.sh"
 
@@ -244,19 +245,30 @@ run_stage() {
       echo ""
     fi
 
-    # Parse output
+    # Get status file path (in iteration directory alongside context.json)
+    local status_file="$(dirname "$context_file")/status.json"
+
+    # Parse output (legacy support) and merge with status.json data
     local output_json="{}"
     if [ -n "$LOOP_OUTPUT_PARSE" ]; then
       output_json=$(parse_outputs_to_json "$output" $LOOP_OUTPUT_PARSE)
     fi
 
-    # Update state - mark iteration completed
-    update_iteration "$state_file" "$i" "$output_json"
+    # If agent wrote status.json, extract decision for state history
+    local history_json="$output_json"
+    if [ -f "$status_file" ]; then
+      local status_data=$(status_to_history_json "$status_file")
+      # Merge status data with parsed output (status takes precedence)
+      history_json=$(echo "$output_json $status_data" | jq -s 'add')
+    fi
+
+    # Update state - mark iteration completed with status data
+    update_iteration "$state_file" "$i" "$history_json"
     mark_iteration_completed "$state_file" "$i"
 
-    # Post-iteration completion check
-    if check_completion "$session" "$state_file" "$output"; then
-      local reason=$(check_completion "$session" "$state_file" "$output" 2>&1)
+    # Post-iteration completion check (v3: pass status file path)
+    if check_completion "$session" "$state_file" "$status_file"; then
+      local reason=$(check_completion "$session" "$state_file" "$status_file" 2>&1)
       echo ""
       echo "$reason"
       mark_complete "$state_file" "$reason"
@@ -264,7 +276,7 @@ run_stage() {
       return 0
     fi
 
-    # Check for explicit completion signal
+    # Check for explicit completion signal (legacy support)
     if type check_output_signal &>/dev/null && check_output_signal "$output"; then
       echo ""
       echo "Completion signal received"
@@ -417,9 +429,10 @@ run_pipeline() {
       local output=$(execute_claude "$resolved_prompt" "$stage_model" "$output_file")
       set -e
 
-      # Check completion
+      # Check completion (v3: pass status file path, falls back gracefully if not exists)
+      local pipeline_status_file="$stage_dir/run-$run_idx-status.json"
       if [ -n "$stage_completion" ] && type check_completion &>/dev/null; then
-        if check_completion "$session" "$state_file" "$output"; then
+        if check_completion "$session" "$state_file" "$pipeline_status_file"; then
           echo "  ✓ Completion condition met after $((run_idx + 1)) iterations"
           break
         fi

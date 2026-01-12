@@ -72,26 +72,33 @@ Append to progress file:
 - [Why you changed it]
 ```
 
-### Step 5: Plateau Decision
+### Step 5: Write Status
 
-At the END of your response, make an intelligent judgment:
+After completing your work, write your status to `${STATUS}`:
 
+```json
+{
+  "decision": "continue",
+  "reason": "Brief explanation of why work should continue or stop",
+  "summary": "One paragraph describing what you improved this iteration",
+  "work": {
+    "items_completed": [],
+    "files_touched": ["docs/plan.md"]
+  },
+  "errors": []
+}
 ```
-PLATEAU: true/false
-REASONING: [Your reasoning for why work should continue or stop]
-```
 
-**Answer true (stop) if:**
-- Remaining issues are cosmetic, not substantive (unused imports, minor style)
-- You're finding the same types of issues repeatedly
-- The plan is "good enough" to implement successfully
-- Further iterations would be diminishing returns
-
-**Answer false (continue) if:**
-- You found significant gaps or errors that need fixing
-- There are architectural issues that need another pass
-- The plan isn't clear enough to implement confidently
-- You made substantial changes that might have introduced new issues
+**Decision guide:**
+- `"continue"` - You found significant gaps or errors that need fixing, or made substantial changes that might have introduced new issues
+- `"stop"` - The plan is ready to implement; remaining issues are cosmetic, not substantive
+- `"error"` - Something went wrong that needs investigation
 
 Be honest. Don't stop early just to finish faster. Don't continue just to seem thorough.
 The goal is a plan that's *ready to implement*, not *perfect*.
+
+Also output for legacy compatibility:
+```
+PLATEAU: true/false
+REASONING: [Same as your decision reason]
+```

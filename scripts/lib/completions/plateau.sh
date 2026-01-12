@@ -1,43 +1,54 @@
 #!/bin/bash
-# Completion strategy: plateau
-# Requires TWO consecutive agents to agree on plateau
+# Completion strategy: plateau (v3)
+# Requires N consecutive agents to write decision: stop
 # Prevents single-agent blind spots
+#
+# v3: Reads from status.json instead of parsing output text
 
 check_completion() {
   local session=$1
   local state_file=$2
-  local output=$3
+  local status_file=$3  # v3: Now receives status file path
 
-  # Parse current agent's plateau decision
-  local plateau=$(echo "$output" | grep -i "^PLATEAU:" | head -1 | cut -d: -f2 | tr -d ' ' | tr '[:upper:]' '[:lower:]')
-  local reasoning=$(echo "$output" | grep -i "^REASONING:" | head -1 | cut -d: -f2-)
+  # Get configurable consensus count (default 2)
+  local consensus_needed=${CONSENSUS:-2}
+  local min_iterations=${MIN_ITERATIONS:-2}
 
-  # Get current iteration and minimum
+  # Read current iteration
   local iteration=$(get_state "$state_file" "iteration")
-  local min=${MIN_ITERATIONS:-2}
 
   # Must hit minimum iterations first
-  if [ "$iteration" -lt "$min" ]; then
+  if [ "$iteration" -lt "$min_iterations" ]; then
     return 1
   fi
 
-  # If current agent says plateau, check if previous agent agreed
-  if [ "$plateau" = "true" ] || [ "$plateau" = "yes" ]; then
+  # Read current decision from status.json
+  local decision=$(get_status_decision "$status_file")
+  local reason=$(get_status_reason "$status_file")
+
+  if [ "$decision" = "stop" ]; then
+    # Count consecutive "stop" decisions from history
     local history=$(get_history "$state_file")
-    local prev_plateau=""
+    local consecutive=1
 
-    if [ -n "$history" ] && [ "$history" != "[]" ]; then
-      prev_plateau=$(echo "$history" | jq -r '.[-1].plateau // "false"' | tr '[:upper:]' '[:lower:]')
-    fi
+    # Check previous iterations for consecutive stops
+    local history_len=$(echo "$history" | jq 'length')
+    for ((i = history_len - 1; i >= 0 && consecutive < consensus_needed; i--)); do
+      local prev_decision=$(echo "$history" | jq -r ".[$i].decision // \"continue\"")
+      if [ "$prev_decision" = "stop" ]; then
+        ((consecutive++))
+      else
+        break
+      fi
+    done
 
-    if [ "$prev_plateau" = "true" ] || [ "$prev_plateau" = "yes" ]; then
-      echo "Plateau CONFIRMED: Two consecutive agents agree"
-      echo "  Previous: plateau=true"
-      echo "  Current:  plateau=true - $reasoning"
+    if [ "$consecutive" -ge "$consensus_needed" ]; then
+      echo "Consensus reached: $consecutive consecutive agents agree to stop"
+      echo "  Reason: $reason"
       return 0
     else
-      echo "Plateau SUGGESTED but not confirmed"
-      echo "  Current agent says: $reasoning"
+      echo "Stop suggested but not confirmed ($consecutive/$consensus_needed needed)"
+      echo "  Current agent says: $reason"
       echo "  Continuing for independent confirmation..."
       return 1
     fi

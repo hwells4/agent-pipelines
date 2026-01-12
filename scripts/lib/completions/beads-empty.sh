@@ -1,11 +1,20 @@
 #!/bin/bash
-# Completion strategy: beads-empty
+# Completion strategy: beads-empty (v3)
 # Complete when no beads remain for this session
+#
+# v3: Accepts status file, checks for error status
 
 check_completion() {
   local session=$1
   local state_file=$2
-  local output=$3
+  local status_file=$3  # v3: Now receives status file path
+
+  # Check if agent reported error - don't complete on error
+  local decision=$(get_status_decision "$status_file" 2>/dev/null)
+  if [ "$decision" = "error" ]; then
+    echo "Agent reported error - not completing"
+    return 1
+  fi
 
   local remaining=$(bd ready --label="loop/$session" 2>/dev/null | grep -c "^" || echo "0")
 
@@ -17,7 +26,7 @@ check_completion() {
   return 1
 }
 
-# Check for explicit completion signal in output
+# Check for explicit completion signal in output (legacy support)
 check_output_signal() {
   local output=$1
 
