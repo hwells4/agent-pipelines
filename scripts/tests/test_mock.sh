@@ -79,18 +79,21 @@ test_get_mock_response_iteration_specific() {
   disable_mock_mode
 }
 
-test_get_mock_response_plateau_detection() {
-  # Fixtures should contain correct PLATEAU values
+test_get_mock_status_sequence() {
+  # v3: Fixtures should have status-N.json with correct decisions
   enable_mock_mode "$SCRIPT_DIR/loops/improve-plan/fixtures"
 
-  local response1=$(get_mock_response 1)
-  assert_contains "$response1" "PLATEAU: false" "Iteration 1 continues"
+  local status1=$(get_mock_status 1)
+  local decision1=$(echo "$status1" | jq -r '.decision')
+  assert_eq "continue" "$decision1" "Iteration 1 continues"
 
-  local response2=$(get_mock_response 2)
-  assert_contains "$response2" "PLATEAU: true" "Iteration 2 suggests stop"
+  local status2=$(get_mock_status 2)
+  local decision2=$(echo "$status2" | jq -r '.decision')
+  assert_eq "stop" "$decision2" "Iteration 2 suggests stop"
 
-  local response3=$(get_mock_response 3)
-  assert_contains "$response3" "PLATEAU: true" "Iteration 3 confirms stop"
+  local status3=$(get_mock_status 3)
+  local decision3=$(echo "$status3" | jq -r '.decision')
+  assert_eq "stop" "$decision3" "Iteration 3 confirms stop"
 
   disable_mock_mode
 }
@@ -139,6 +142,6 @@ run_test "Disable mock mode" test_disable_mock_mode
 run_test "is_mock_mode function" test_is_mock_mode
 run_test "Get mock response (default)" test_get_mock_response_default
 run_test "Get mock response (iteration-specific)" test_get_mock_response_iteration_specific
-run_test "Mock response plateau detection" test_get_mock_response_plateau_detection
+run_test "Mock status sequence (v3)" test_get_mock_status_sequence
 run_test "Get mock status" test_get_mock_status
 run_test "Generate default status" test_generate_default_status
