@@ -22,13 +22,13 @@ Three termination types:
 
 | Type | Stops when | Use for |
 |------|------------|---------|
-| `queue` | Task queue empty | Implementation |
+| `queue` | Task queue empty | Custom queue-based stages |
 | `judgment` | N agents agree to stop | Refinement, review |
-| `fixed` | N iterations done | Brainstorming |
+| `fixed` | N iterations done | Implementation, brainstorming |
 
 Scaffold a new stage:
 ```bash
-/agent-pipelines:build-stage bugfix
+/pipeline          # Design and create new stages interactively
 ```
 
 Edit the prompt, run it. The framework handles iteration, state, crash recovery, and knowing when to stop.
@@ -59,7 +59,7 @@ The plugin checks for these on startup:
 
 ```bash
 /sessions          # Orchestration hub: plan, status, attach, kill
-/work              # Run the work loop: implement tasks from beads
+/ralph             # Quick-start work loop: implement tasks from beads
 /refine            # Run refinement pipelines: improve plans and beads
 /ideate            # Generate improvement ideas (one-shot)
 ```
@@ -78,7 +78,7 @@ The plugin checks for these on startup:
 ```bash
 /agent-pipelines:create-prd     # Generate product requirements document
 /agent-pipelines:create-tasks   # Break PRD into executable beads
-/agent-pipelines:build-stage    # Scaffold a new custom stage type
+/pipeline                       # Design, create, and edit stages/pipelines
 ```
 
 Or just talk to Claude naturally:
@@ -251,7 +251,7 @@ scripts/
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions
-│   ├── work/                 # Implementation (queue termination)
+│   ├── work/                 # Implementation (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-beads/         # Bead refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
@@ -278,7 +278,7 @@ name: work
 description: Implement features from beads until done
 
 termination:
-  type: queue                 # queue, judgment, or fixed
+  type: fixed                 # queue, judgment, or fixed
 
 delay: 3                      # Seconds between iterations
 ```
@@ -834,10 +834,10 @@ First stage refines the plan document. Second stage refines the beads. Both use 
 
 ### 4. Implement
 
-Use `/work` to run the implementation loop:
+Use `/ralph` to run the implementation loop:
 
 ```bash
-/work auth 25    # Run work loop, max 25 iterations
+/ralph    # Interactive: select task source and iterations
 ```
 
 Each iteration:

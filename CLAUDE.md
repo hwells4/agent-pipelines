@@ -46,7 +46,9 @@ Skills are Claude Code extensions in `skills/`. Each provides specialized workfl
 | **plan-refinery** | `/plan-refinery` | Iterative planning with Opus subagents |
 | **create-prd** | `/agent-pipelines:create-prd` | Generate PRDs through adaptive questioning |
 | **create-tasks** | `/agent-pipelines:create-tasks` | Break PRD into executable beads |
-| **pipeline-builder** | `/agent-pipelines:pipeline-builder` | Create custom stages and pipelines |
+| **pipeline-designer** | `/pipeline` | Design new pipeline architectures |
+| **pipeline-creator** | `/pipeline create` | Create stage.yaml and prompt.md files |
+| **pipeline-editor** | `/pipeline edit` | Modify existing stages and pipelines |
 
 ### Skill Structure
 
@@ -62,9 +64,12 @@ Commands in `commands/` provide user-facing interfaces.
 | Command | Usage | Description |
 |---------|-------|-------------|
 | `/sessions` | `/sessions`, `/sessions list`, `/sessions start` | Session management: start, list, monitor, kill, cleanup |
-| `/work` | `/work`, `/work auth` | Launch work pipelines |
+| `/ralph` | `/ralph` | Quick-start work pipelines (interactive) |
 | `/refine` | `/refine`, `/refine quick`, `/refine deep` | Run refinement pipelines |
 | `/ideate` | `/ideate`, `/ideate 3` | Generate improvement ideas |
+| `/robot-mode` | `/robot-mode`, `/robot-mode 2` | Audit CLI for agent-friendliness |
+| `/readme-sync` | `/readme-sync`, `/readme-sync 2` | Sync README with codebase |
+| `/pipeline` | `/pipeline`, `/pipeline edit` | Design, create, and edit pipelines |
 
 ## Architecture
 
@@ -87,12 +92,15 @@ scripts/
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
-├── loops/                    # Stage definitions (single-stage pipeline configs)
-│   ├── work/                 # Implementation (queue termination)
+├── stages/                   # Stage definitions (single-stage pipeline configs)
+│   ├── work/                 # Implementation (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
 │   ├── refine-beads/         # Bead refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
-│   └── idea-wizard/          # Ideation (fixed termination)
+│   ├── idea-wizard/          # Ideation (fixed termination)
+│   ├── research-plan/        # Research-driven planning (judgment termination)
+│   ├── readme-sync/          # Documentation sync (fixed termination)
+│   └── robot-mode/           # Agent-friendly CLI design (fixed termination)
 └── pipelines/                # Multi-stage pipeline configs
     └── *.yaml
 
@@ -150,9 +158,9 @@ A stage = prompt template + termination strategy. Stages are defined in `scripts
 
 | Type | How It Works | Used By |
 |------|--------------|---------|
-| `queue` | Checks external queue (`bd ready`) is empty | work stage |
-| `judgment` | Requires N consecutive agents to write `decision: stop` | improve-plan, refine-beads, elegance |
-| `fixed` | Runs exactly N iterations | idea-wizard |
+| `queue` | Checks external queue (`bd ready`) is empty | (available for custom stages) |
+| `judgment` | Requires N consecutive agents to write `decision: stop` | improve-plan, refine-beads, elegance, research-plan |
+| `fixed` | Runs exactly N iterations | work, idea-wizard, readme-sync, robot-mode |
 
 **v3 status format:** Agents write `status.json` with:
 ```json
@@ -228,10 +236,10 @@ delay: 3                # seconds between iterations
 ## Recommended Workflow
 
 **Feature implementation flow:**
-1. `/loop plan` or `/agent-pipelines:create-prd` → Gather requirements, save to `docs/plans/`
+1. `/sessions plan` or `/agent-pipelines:create-prd` → Gather requirements, save to `docs/plans/`
 2. `/agent-pipelines:create-tasks` → Break PRD into beads tagged `pipeline/{session}`
 3. `/refine` → Run refinement pipeline (default: 5+5 iterations)
-4. `/work` → Run work pipeline until all beads complete
+4. `/ralph` → Run work pipeline until all beads complete
 
 ## Key Patterns
 
