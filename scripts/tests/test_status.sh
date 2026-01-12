@@ -111,7 +111,7 @@ test_validate_status_error() {
 
 test_get_decision_missing_file() {
   local decision=$(get_status_decision "/nonexistent/path.json")
-  assert_eq "continue" "$decision" "Returns 'continue' for missing file"
+  assert_eq "error" "$decision" "Returns 'error' for missing file (fail-fast)"
 }
 
 test_get_decision_continue() {

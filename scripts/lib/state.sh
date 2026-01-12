@@ -160,31 +160,6 @@ get_resume_iteration() {
   echo "$((completed + 1))"
 }
 
-# Check if session can be resumed
-# Usage: can_resume "$state_file"
-# Returns: 0 if can resume, 1 if not
-can_resume() {
-  local state_file=$1
-
-  if [ ! -f "$state_file" ]; then
-    return 1
-  fi
-
-  local status=$(jq -r '.status // "unknown"' "$state_file" 2>/dev/null)
-
-  case "$status" in
-    complete)
-      return 1  # Already complete, nothing to resume
-      ;;
-    running|failed)
-      return 0  # Can resume
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
 # Reset state for resume (clears failure status, keeps history, adds resumed_at)
 # Usage: reset_for_resume "$state_file"
 reset_for_resume() {

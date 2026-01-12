@@ -4,7 +4,7 @@
 # Tests the v3 failure state with:
 # - Structured error object (type, message, timestamp)
 # - resume_from field for recovery
-# - can_resume and reset_for_resume functions
+# - get_resume_iteration and reset_for_resume functions
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/lib/test.sh"
@@ -121,49 +121,6 @@ test_get_resume_iteration_nonexistent_file() {
 }
 
 #-------------------------------------------------------------------------------
-# Can Resume Tests
-#-------------------------------------------------------------------------------
-
-test_can_resume_failed_session() {
-  local tmp=$(create_test_dir)
-  local state_file="$tmp/state.json"
-  echo '{"status":"failed","iteration":5,"iteration_completed":4}' > "$state_file"
-
-  can_resume "$state_file"
-  local result=$?
-  assert_eq "0" "$result" "can_resume returns 0 for failed session"
-  cleanup_test_dir "$tmp"
-}
-
-test_can_resume_running_session() {
-  local tmp=$(create_test_dir)
-  local state_file="$tmp/state.json"
-  echo '{"status":"running","iteration":5,"iteration_completed":4}' > "$state_file"
-
-  can_resume "$state_file"
-  local result=$?
-  assert_eq "0" "$result" "can_resume returns 0 for running session"
-  cleanup_test_dir "$tmp"
-}
-
-test_cannot_resume_completed_session() {
-  local tmp=$(create_test_dir)
-  local state_file="$tmp/state.json"
-  echo '{"status":"complete","iteration":5,"iteration_completed":5}' > "$state_file"
-
-  can_resume "$state_file"
-  local result=$?
-  assert_eq "1" "$result" "can_resume returns 1 for completed session"
-  cleanup_test_dir "$tmp"
-}
-
-test_cannot_resume_nonexistent_session() {
-  can_resume "/nonexistent/state.json"
-  local result=$?
-  assert_eq "1" "$result" "can_resume returns 1 for nonexistent file"
-}
-
-#-------------------------------------------------------------------------------
 # Reset For Resume Tests
 #-------------------------------------------------------------------------------
 
@@ -273,11 +230,6 @@ run_test "mark_failed resume_from first iteration" test_mark_failed_resume_from_
 run_test "get_resume_iteration" test_get_resume_iteration
 run_test "get_resume_iteration no completed" test_get_resume_iteration_no_completed
 run_test "get_resume_iteration nonexistent file" test_get_resume_iteration_nonexistent_file
-
-run_test "can_resume failed session" test_can_resume_failed_session
-run_test "can_resume running session" test_can_resume_running_session
-run_test "cannot resume completed session" test_cannot_resume_completed_session
-run_test "cannot resume nonexistent session" test_cannot_resume_nonexistent_session
 
 run_test "reset_for_resume clears error" test_reset_for_resume_clears_error
 run_test "reset_for_resume sets resumed_at" test_reset_for_resume_sets_resumed_at

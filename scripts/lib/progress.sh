@@ -44,14 +44,3 @@ init_stage_progress() {
 
   echo "$progress_file"
 }
-
-# Append to progress file
-# Usage: append_progress "$progress_file" "$content"
-append_progress() {
-  local progress_file=$1
-  local content=$2
-
-  echo "$content" >> "$progress_file"
-  echo "---" >> "$progress_file"
-  echo "" >> "$progress_file"
-}

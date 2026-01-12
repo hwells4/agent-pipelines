@@ -46,12 +46,3 @@ json_array_len() {
 
   echo "$json" | jq -r "$path | length" 2>/dev/null || echo "0"
 }
-
-# Get array as newline-separated values
-# Usage: json_array "$json" ".perspectives[]"
-json_array() {
-  local json=$1
-  local path=$2
-
-  echo "$json" | jq -r "$path" 2>/dev/null
-}

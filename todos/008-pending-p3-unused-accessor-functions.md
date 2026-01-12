@@ -4,7 +4,7 @@ priority: p3
 issue_id: "008"
 tags: [code-review, simplification, v3-refactor]
 dependencies: []
-resolution: fixed
+resolution: wont_fix
 ---
 
 # Unused Accessor Functions in status.sh
@@ -68,7 +68,7 @@ Implement Option A. If needed later, re-adding a one-liner is trivial.
 | Date | Action | Learnings |
 |------|--------|-----------|
 | 2026-01-12 | Created from simplicity review | YAGNI violation - speculative accessors |
-| 2026-01-12 | **Fixed** | Removed get_status_summary, get_status_files, get_status_items, get_status_errors (~45 LOC) |
+| 2026-01-12 | **Kept** | Functions are documented in CLAUDE.md for debugging. Keeping as utility API even without current callers. |
 
 ## Resources
 
