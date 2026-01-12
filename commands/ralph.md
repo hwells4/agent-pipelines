@@ -2,7 +2,7 @@
 description: Run a traditional Ralph loop on a set of tasks. Uses beads for task management.
 ---
 
-# /work
+# /ralph
 
 A basic [Ralph loop](https://ghuntley.com/ralph/) implementation. Spawns a fresh Claude agent in tmux that works through your task queue (beads) until empty.
 
@@ -11,11 +11,11 @@ A basic [Ralph loop](https://ghuntley.com/ralph/) implementation. Spawns a fresh
 ## Usage
 
 ```
-/work                # Start loop (auto-detects session)
-/work auth           # Work on beads labeled loop/auth
-/work status         # Check running loops
-/work attach NAME    # Watch live (Ctrl+b d to detach)
-/work kill NAME      # Stop a loop
+/ralph                # Start loop (auto-detects session)
+/ralph auth           # Work on beads labeled loop/auth
+/ralph status         # Check running loops
+/ralph attach NAME    # Watch live (Ctrl+b d to detach)
+/ralph kill NAME      # Stop a loop
 ```
 
 ## How It Works
