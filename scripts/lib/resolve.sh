@@ -7,7 +7,8 @@
 #   ${ITERATION}                  - Current iteration (1-based)
 #   ${INDEX}                      - Current run index (0-based)
 #   ${PERSPECTIVE}                - Current perspective (for fan-out)
-#   ${OUTPUT}                     - Path to write output
+#   ${OUTPUT}                     - Path to write output (internal, gitignored)
+#   ${OUTPUT_PATH}                - Path for tracked output (if configured in loop.yaml)
 #   ${PROGRESS} / ${PROGRESS_FILE} - Path to progress file
 #   ${INPUTS.stage-name}          - Outputs from a previous stage
 #   ${INPUTS}                     - Shorthand for previous stage outputs
@@ -27,6 +28,7 @@ resolve_prompt() {
   local index=$(echo "$vars_json" | jq -r '.index // empty')
   local perspective=$(echo "$vars_json" | jq -r '.perspective // empty')
   local output_file=$(echo "$vars_json" | jq -r '.output // empty')
+  local output_path=$(echo "$vars_json" | jq -r '.output_path // empty')
   local progress_file=$(echo "$vars_json" | jq -r '.progress // empty')
   local run_dir=$(echo "$vars_json" | jq -r '.run_dir // empty')
   local stage_idx=$(echo "$vars_json" | jq -r '.stage_idx // "0"')
@@ -38,6 +40,7 @@ resolve_prompt() {
   resolved="${resolved//\$\{INDEX\}/$index}"
   resolved="${resolved//\$\{PERSPECTIVE\}/$perspective}"
   resolved="${resolved//\$\{OUTPUT\}/$output_file}"
+  resolved="${resolved//\$\{OUTPUT_PATH\}/$output_path}"
   resolved="${resolved//\$\{PROGRESS\}/$progress_file}"
   resolved="${resolved//\$\{PROGRESS_FILE\}/$progress_file}"
 

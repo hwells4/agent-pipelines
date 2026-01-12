@@ -85,6 +85,7 @@ load_stage() {
   LOOP_MIN_ITERATIONS=$(json_get "$LOOP_CONFIG" ".min_iterations" "1")
   LOOP_ITEMS=$(json_get "$LOOP_CONFIG" ".items" "")
   LOOP_PROMPT_NAME=$(json_get "$LOOP_CONFIG" ".prompt" "prompt")
+  LOOP_OUTPUT_PATH=$(json_get "$LOOP_CONFIG" ".output_path" "")
 
   # Export for completion strategies
   export MIN_ITERATIONS="$LOOP_MIN_ITERATIONS"
@@ -166,6 +167,7 @@ run_stage() {
     echo "  Max iterations: $max_iterations"
     echo "  Model: $LOOP_MODEL"
     echo "  Completion: $LOOP_COMPLETION"
+    [ -n "$LOOP_OUTPUT_PATH" ] && echo "  Output: ${LOOP_OUTPUT_PATH//\$\{SESSION\}/$session}"
     echo ""
   else
     show_resume_info "$session" "$start_iteration" "$max_iterations"
@@ -190,15 +192,26 @@ run_stage() {
       fi
     fi
 
+    # Resolve output_path (replace ${SESSION} with actual session name)
+    local resolved_output_path=""
+    if [ -n "$LOOP_OUTPUT_PATH" ]; then
+      resolved_output_path="${LOOP_OUTPUT_PATH//\$\{SESSION\}/$session}"
+      resolved_output_path="${resolved_output_path//\$\{SESSION_NAME\}/$session}"
+      # Create parent directory if it doesn't exist
+      local output_dir=$(dirname "$resolved_output_path")
+      [ -n "$output_dir" ] && [ "$output_dir" != "." ] && mkdir -p "$output_dir"
+    fi
+
     # Build variables for prompt resolution
     local vars_json=$(jq -n \
       --arg session "$session" \
       --arg iteration "$i" \
       --arg index "$((i - 1))" \
       --arg progress "$progress_file" \
+      --arg output_path "$resolved_output_path" \
       --arg run_dir "$run_dir" \
       --arg stage_idx "$stage_idx" \
-      '{session: $session, iteration: $iteration, index: $index, progress: $progress, run_dir: $run_dir, stage_idx: $stage_idx}')
+      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx}')
 
     # Resolve prompt
     local resolved_prompt=$(resolve_prompt "$LOOP_PROMPT" "$vars_json")

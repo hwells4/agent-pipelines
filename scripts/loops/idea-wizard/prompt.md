@@ -2,6 +2,7 @@
 
 Session: ${SESSION_NAME}
 Progress file: ${PROGRESS_FILE}
+Output file: ${OUTPUT_PATH}
 Iteration: ${ITERATION}
 
 ## Your Task
@@ -18,7 +19,7 @@ ls -la docs/*.md 2>/dev/null || echo "No docs yet"
 
 Also check what ideas have already been generated:
 ```bash
-cat docs/ideas.md 2>/dev/null || echo "No previous ideas"
+cat ${OUTPUT_PATH} 2>/dev/null || echo "No previous ideas"
 ```
 
 ### Step 2: Brainstorm
@@ -50,12 +51,11 @@ Select your best 5 ideas. For each:
 
 ### Step 5: Save Ideas
 
-Append your top 5 to `docs/ideas.md`:
-```bash
-mkdir -p docs
-```
+Write your top 5 ideas to the output file (${OUTPUT_PATH}).
 
-Then write/append to the file with your ideas in this format:
+If this is iteration 1, create the file. If iteration 2+, append to it.
+
+Format:
 ```markdown
 ## Ideas from ${SESSION_NAME} - Iteration ${ITERATION}
 
