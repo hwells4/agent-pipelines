@@ -79,61 +79,6 @@ get_status_reason() {
   jq -r '.reason // ""' "$status_file" 2>/dev/null || echo ""
 }
 
-# Read status summary
-# Usage: get_status_summary "$status_file"
-get_status_summary() {
-  local status_file=$1
-
-  if [ ! -f "$status_file" ]; then
-    echo ""
-    return
-  fi
-
-  jq -r '.summary // ""' "$status_file" 2>/dev/null || echo ""
-}
-
-# Read files touched from status
-# Usage: get_status_files "$status_file"
-# Returns: JSON array of file paths
-get_status_files() {
-  local status_file=$1
-
-  if [ ! -f "$status_file" ]; then
-    echo "[]"
-    return
-  fi
-
-  jq -c '.work.files_touched // []' "$status_file" 2>/dev/null || echo "[]"
-}
-
-# Read items completed from status
-# Usage: get_status_items "$status_file"
-# Returns: JSON array of item identifiers
-get_status_items() {
-  local status_file=$1
-
-  if [ ! -f "$status_file" ]; then
-    echo "[]"
-    return
-  fi
-
-  jq -c '.work.items_completed // []' "$status_file" 2>/dev/null || echo "[]"
-}
-
-# Read errors from status
-# Usage: get_status_errors "$status_file"
-# Returns: JSON array of error messages
-get_status_errors() {
-  local status_file=$1
-
-  if [ ! -f "$status_file" ]; then
-    echo "[]"
-    return
-  fi
-
-  jq -c '.errors // []' "$status_file" 2>/dev/null || echo "[]"
-}
-
 # Create error status (when agent crashes, times out, or doesn't write status)
 # Usage: create_error_status "$status_file" "$error_message"
 create_error_status() {
