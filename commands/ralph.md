@@ -1,42 +1,77 @@
 ---
-description: Run a traditional Ralph loop on a set of tasks. Uses beads for task management.
+description: Spin up a Ralph loop - the simplest way to run autonomous iterations on a task queue
 ---
 
 # /ralph
 
-A basic [Ralph loop](https://ghuntley.com/ralph/) implementation. Spawns a fresh Claude agent in tmux that works through your task queue (beads) until empty.
+The easiest way to start an autonomous agent pipeline. Ask two questions, start working.
 
-**Core idea:** Fresh agent per iteration prevents context degradation. Each agent reads accumulated progress, does one task, writes what it learned, exits. Repeat.
+## When Invoked
 
-## Usage
+Ask the user these two questions, then start the pipeline:
 
-```
-/ralph                # Start loop (auto-detects session)
-/ralph auth           # Work on beads labeled pipeline/auth
-/ralph status         # Check running loops
-/ralph attach NAME    # Watch live (Ctrl+b d to detach)
-/ralph kill NAME      # Stop a loop
-```
+### Question 1: Where are your tasks?
 
-## How It Works
+Ask: **"Where are your tasks?"**
 
-Runs in tmux (`pipeline-{session}`). Each iteration:
-1. Fresh Claude spawns
-2. Reads progress file (accumulated context)
-3. Picks next bead from queue
-4. Implements, tests, commits
-5. Closes bead, writes learnings
-6. Exits
+Options:
+- **Beads label** (default) - Tasks in beads with a specific label (e.g., `pipeline/auth`)
+- **Ready beads** - All ready beads (`bd ready`)
+- **File** - A markdown file with a task list
 
-Repeats until queue empty.
+If they choose beads label, ask for the label name. Default to `pipeline/{something}` format.
 
-## Termination
+### Question 2: How many iterations?
 
-**Fixed iterations** - runs exactly N times (you specify max). Traditional Ralph behavior.
+Ask: **"How many iterations maximum?"**
 
-## Monitoring
+Options:
+- **10** - Quick run
+- **25** - Standard (recommended)
+- **50** - Long running
+- **Custom** - Let them specify
 
+## Starting the Pipeline
+
+Once you have answers:
+
+1. **Verify tasks exist:**
 ```bash
-tmux attach -t pipeline-{session}     # Watch live
-bd ready --label=pipeline/{session}   # Remaining tasks
+# For beads:
+bd ready --label={label} | head -5
+
+# For file:
+cat {file} | head -10
 ```
+
+2. **Derive session name** from the label or file (e.g., `pipeline/auth` → `auth`, `tasks/feature.md` → `feature`)
+
+3. **Start the work pipeline:**
+```bash
+./scripts/run.sh work {session} {iterations}
+```
+
+4. **Confirm to user:**
+```
+Started pipeline '{session}' with max {iterations} iterations.
+
+Monitor: /sessions status {session}
+Attach:  tmux attach -t pipeline-{session}
+Stop:    /sessions kill {session}
+```
+
+## Examples
+
+**User:** `/ralph`
+**Assistant:** "Where are your tasks?"
+**User:** "Beads labeled pipeline/auth"
+**Assistant:** "How many iterations?"
+**User:** "25"
+**Assistant:** *runs `./scripts/run.sh work auth 25`* "Started pipeline 'auth'..."
+
+**User:** `/ralph`
+**Assistant:** "Where are your tasks?"
+**User:** "All ready beads"
+**Assistant:** *checks `bd ready`* "Found 8 ready beads. How many iterations?"
+**User:** "10"
+**Assistant:** *runs `./scripts/run.sh work default 10`* "Started pipeline 'default'..."
