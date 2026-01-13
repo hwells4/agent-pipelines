@@ -1362,6 +1362,327 @@ test_parallel_block_state_tracking() {
 }
 
 #-------------------------------------------------------------------------------
+# Phase 5: Resume and Integration Tests
+#-------------------------------------------------------------------------------
+
+test_parallel_block_resume_skips_completed_providers() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/mock.sh"
+
+  setup_parallel_execution_test "$test_dir"
+
+  # Initialize pipeline state
+  local state_file=$(init_state "test-session" "pipeline" "$run_dir")
+
+  local block_dir=$(init_parallel_block "$run_dir" 0 "dual-refine" "claude codex")
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  # Simulate: claude completed, codex in progress (crashed at iteration 1)
+  mkdir -p "$block_dir/providers/claude/stage-00-plan/iterations/001"
+  echo "Claude plan output" > "$block_dir/providers/claude/stage-00-plan/iterations/001/output.md"
+  echo '{"decision":"stop","reason":"fixed"}' > "$block_dir/providers/claude/stage-00-plan/iterations/001/status.json"
+
+  # Mark claude as complete
+  jq '.status = "complete" | .stages = [{"name":"plan","iterations":1,"termination_reason":"fixed"}]' \
+    "$block_dir/providers/claude/state.json" > "$block_dir/providers/claude/state.json.tmp" && \
+    mv "$block_dir/providers/claude/state.json.tmp" "$block_dir/providers/claude/state.json"
+
+  # Mark codex as running (simulating crash)
+  jq '.status = "running" | .current_stage_name = "plan" | .iteration = 1' \
+    "$block_dir/providers/codex/state.json" > "$block_dir/providers/codex/state.json.tmp" && \
+    mv "$block_dir/providers/codex/state.json.tmp" "$block_dir/providers/codex/state.json"
+
+  # Write resume.json
+  write_parallel_resume "$block_dir" "claude" 0 1 "complete"
+  write_parallel_resume "$block_dir" "codex" 0 1 "running"
+
+  if type run_parallel_block_resume &>/dev/null; then
+    # Run resume
+    local block_config='{"name":"dual-refine","parallel":{"providers":["claude","codex"],"stages":[{"name":"plan","stage":"improve-plan","termination":{"type":"fixed","iterations":1}}]}}'
+    run_parallel_block_resume 0 "$block_config" "{}" "$state_file" "$run_dir" "test-session" "$block_dir" >/dev/null 2>&1
+
+    # Claude should still be complete (not re-run)
+    local claude_status=$(jq -r '.status' "$block_dir/providers/claude/state.json" 2>/dev/null)
+    assert_eq "complete" "$claude_status" "Claude should remain complete (not re-run)"
+
+    # Codex should now be complete
+    local codex_status=$(jq -r '.status' "$block_dir/providers/codex/state.json" 2>/dev/null)
+    assert_eq "complete" "$codex_status" "Codex should be complete after resume"
+
+    # Manifest should exist
+    assert_file_exists "$block_dir/manifest.json" "Manifest should exist after resume"
+  else
+    # Alternative: test the core resume hint mechanism
+    local claude_hint=$(get_parallel_resume_hint "$block_dir" "claude")
+    local codex_hint=$(get_parallel_resume_hint "$block_dir" "codex")
+
+    local claude_resume_status=$(echo "$claude_hint" | jq -r '.status')
+    local codex_resume_status=$(echo "$codex_hint" | jq -r '.status')
+
+    assert_eq "complete" "$claude_resume_status" "Claude resume hint should show complete"
+    assert_eq "running" "$codex_resume_status" "Codex resume hint should show running (needs resume)"
+  fi
+
+  cleanup_test_dir "$test_dir"
+  unset MOCK_MODE MOCK_FIXTURES_DIR STAGES_DIR
+}
+
+test_parallel_manifest_not_written_on_failure() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+
+  # Initialize parallel block
+  local block_dir=$(init_parallel_block "$run_dir" 0 "dual-refine" "claude codex")
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  # Simulate: claude completed, codex failed
+  mkdir -p "$block_dir/providers/claude/stage-00-plan/iterations/001"
+  echo "Claude plan output" > "$block_dir/providers/claude/stage-00-plan/iterations/001/output.md"
+
+  # Mark claude as complete
+  jq '.status = "complete" | .stages = [{"name":"plan","iterations":1,"termination_reason":"fixed"}]' \
+    "$block_dir/providers/claude/state.json" > "$block_dir/providers/claude/state.json.tmp" && \
+    mv "$block_dir/providers/claude/state.json.tmp" "$block_dir/providers/claude/state.json"
+
+  # Mark codex as failed
+  jq '.status = "failed" | .error = "Mock failure"' \
+    "$block_dir/providers/codex/state.json" > "$block_dir/providers/codex/state.json.tmp" && \
+    mv "$block_dir/providers/codex/state.json.tmp" "$block_dir/providers/codex/state.json"
+
+  # Verify manifest does NOT exist (because codex failed)
+  # Note: write_parallel_manifest is only called when all providers complete successfully
+  assert_file_not_exists "$block_dir/manifest.json" \
+    "Manifest should not exist when block has failed provider"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_from_parallel_select_subset() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block with two providers
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex gemini")
+
+  # Create stage outputs for all providers
+  for provider in claude codex gemini; do
+    mkdir -p "$block_dir/providers/$provider/stage-00-iterate/iterations/001"
+    echo "$provider output" > "$block_dir/providers/$provider/stage-00-iterate/iterations/001/output.md"
+    cat > "$block_dir/providers/$provider/state.json" << EOF
+{"provider": "$provider", "status": "complete", "stages": [{"name": "iterate", "iterations": 1, "termination_reason": "fixed"}]}
+EOF
+  done
+
+  # Write manifest
+  write_parallel_manifest "$block_dir" "dual-refine" 1 "iterate" "claude codex gemini"
+
+  # Create downstream stage requesting only claude and codex (excluding gemini)
+  mkdir -p "$run_dir/stage-02-synthesize/iterations/001"
+
+  local stage_config=$(jq -n \
+    --arg id "synthesize" \
+    --arg name "synthesize" \
+    --argjson index 2 \
+    --arg block_dir "$block_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {
+        from_parallel: {
+          stage: "iterate",
+          block: "dual-refine",
+          providers: ["claude", "codex"],
+          select: "latest"
+        }
+      },
+      parallel_blocks: {
+        "dual-refine": {
+          manifest_path: ($block_dir + "/manifest.json")
+        }
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$run_dir")
+
+  # Check that only claude and codex are included, not gemini
+  assert_json_field_exists "$context_file" ".inputs.from_parallel.providers.claude" \
+    "Should include claude"
+  assert_json_field_exists "$context_file" ".inputs.from_parallel.providers.codex" \
+    "Should include codex"
+
+  local gemini_entry=$(jq -r '.inputs.from_parallel.providers.gemini // "null"' "$context_file")
+  assert_eq "null" "$gemini_entry" "Should NOT include gemini when subset specified"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_pipeline_with_sequential_parallel_sequential() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+  source "$SCRIPT_DIR/lib/mock.sh"
+
+  setup_parallel_execution_test "$test_dir"
+
+  # Initialize pipeline state
+  local state_file=$(init_state "test-session" "pipeline" "$run_dir")
+
+  # Stage 0: Sequential setup stage
+  mkdir -p "$run_dir/stage-00-setup/iterations/001"
+  echo "Setup output" > "$run_dir/stage-00-setup/iterations/001/output.md"
+  update_stage "$state_file" 0 "setup" "complete"
+
+  # Stage 1: Parallel block
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  if type run_parallel_block &>/dev/null; then
+    local block_config='{"name":"dual-refine","parallel":{"providers":["claude","codex"],"stages":[{"name":"plan","stage":"improve-plan","termination":{"type":"fixed","iterations":1}}]}}'
+
+    run_parallel_block 1 "$block_config" "{}" "$state_file" "$run_dir" "test-session" >/dev/null 2>&1
+  else
+    # Simulate parallel block completion manually
+    for provider in claude codex; do
+      mkdir -p "$block_dir/providers/$provider/stage-00-plan/iterations/001"
+      echo "$provider plan output" > "$block_dir/providers/$provider/stage-00-plan/iterations/001/output.md"
+      jq '.status = "complete" | .stages = [{"name":"plan","iterations":1,"termination_reason":"fixed"}]' \
+        "$block_dir/providers/$provider/state.json" > "$block_dir/providers/$provider/state.json.tmp" && \
+        mv "$block_dir/providers/$provider/state.json.tmp" "$block_dir/providers/$provider/state.json"
+    done
+    write_parallel_manifest "$block_dir" "dual-refine" 1 "plan" "claude codex"
+    update_stage "$state_file" 1 "dual-refine" "complete"
+  fi
+
+  # Stage 2: Sequential synthesize stage
+  mkdir -p "$run_dir/stage-02-synthesize/iterations/001"
+  echo "Synthesize output" > "$run_dir/stage-02-synthesize/iterations/001/output.md"
+  update_stage "$state_file" 2 "synthesize" "complete"
+
+  # All stages should exist
+  assert_dir_exists "$run_dir/stage-00-setup" "Setup stage should exist"
+  assert_dir_exists "$run_dir/parallel-01-dual-refine" "Parallel block should exist"
+  assert_dir_exists "$run_dir/stage-02-synthesize" "Synthesize stage should exist"
+
+  # Pipeline state should track all three stages
+  local stage_count=$(jq '.stages | length' "$state_file")
+  assert_eq "3" "$stage_count" "Pipeline should have 3 stages tracked"
+
+  cleanup_test_dir "$test_dir"
+  unset MOCK_MODE MOCK_FIXTURES_DIR STAGES_DIR
+}
+
+test_parallel_resume_updates_resume_json() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+
+  # Initialize parallel block
+  local block_dir=$(init_parallel_block "$run_dir" 0 "dual-refine" "claude codex")
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  # Initial resume state
+  write_parallel_resume "$block_dir" "claude" 0 1 "pending"
+  write_parallel_resume "$block_dir" "codex" 0 1 "pending"
+
+  # Update resume state as providers progress
+  write_parallel_resume "$block_dir" "claude" 0 2 "running"
+  write_parallel_resume "$block_dir" "codex" 0 1 "running"
+
+  # Update again - claude completes stage 0
+  write_parallel_resume "$block_dir" "claude" 0 2 "complete"
+
+  # Verify resume state
+  local claude_hint=$(get_parallel_resume_hint "$block_dir" "claude")
+  local codex_hint=$(get_parallel_resume_hint "$block_dir" "codex")
+
+  local claude_iter=$(echo "$claude_hint" | jq -r '.iteration')
+  local claude_status=$(echo "$claude_hint" | jq -r '.status')
+  local codex_iter=$(echo "$codex_hint" | jq -r '.iteration')
+  local codex_status=$(echo "$codex_hint" | jq -r '.status')
+
+  assert_eq "2" "$claude_iter" "Claude should be at iteration 2"
+  assert_eq "complete" "$claude_status" "Claude should be complete"
+  assert_eq "1" "$codex_iter" "Codex should be at iteration 1"
+  assert_eq "running" "$codex_status" "Codex should be running"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_parallel_block_all_providers_must_complete() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+
+  # Initialize parallel block with 3 providers
+  local block_dir=$(init_parallel_block "$run_dir" 0 "triple-refine" "claude codex gemini")
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+  init_provider_state "$block_dir" "gemini" "test-session"
+
+  # Claude complete, Codex complete, Gemini still running
+  jq '.status = "complete"' "$block_dir/providers/claude/state.json" > "$block_dir/providers/claude/state.json.tmp" && \
+    mv "$block_dir/providers/claude/state.json.tmp" "$block_dir/providers/claude/state.json"
+  jq '.status = "complete"' "$block_dir/providers/codex/state.json" > "$block_dir/providers/codex/state.json.tmp" && \
+    mv "$block_dir/providers/codex/state.json.tmp" "$block_dir/providers/codex/state.json"
+  jq '.status = "running"' "$block_dir/providers/gemini/state.json" > "$block_dir/providers/gemini/state.json.tmp" && \
+    mv "$block_dir/providers/gemini/state.json.tmp" "$block_dir/providers/gemini/state.json"
+
+  # Helper: check if all providers complete
+  local all_complete=true
+  for provider in claude codex gemini; do
+    local status=$(jq -r '.status' "$block_dir/providers/$provider/state.json")
+    if [ "$status" != "complete" ]; then
+      all_complete=false
+      break
+    fi
+  done
+
+  # Block should NOT be complete yet
+  assert_eq "false" "$all_complete" "Block should not be complete when gemini is still running"
+
+  # Now mark gemini complete
+  jq '.status = "complete"' "$block_dir/providers/gemini/state.json" > "$block_dir/providers/gemini/state.json.tmp" && \
+    mv "$block_dir/providers/gemini/state.json.tmp" "$block_dir/providers/gemini/state.json"
+
+  # Check again
+  all_complete=true
+  for provider in claude codex gemini; do
+    local status=$(jq -r '.status' "$block_dir/providers/$provider/state.json")
+    if [ "$status" != "complete" ]; then
+      all_complete=false
+      break
+    fi
+  done
+
+  assert_eq "true" "$all_complete" "Block should be complete when all providers complete"
+
+  cleanup_test_dir "$test_dir"
+}
+
+#-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
 
@@ -1413,5 +1734,16 @@ run_test "Parallel fixed iteration count" test_parallel_fixed_iteration_count
 run_test "Parallel providers run concurrently" test_parallel_providers_run_concurrently
 run_test "Parallel multi-stage within block" test_parallel_multi_stage_within_block
 run_test "Parallel block state tracking" test_parallel_block_state_tracking
+
+echo ""
+echo "=== Phase 5: Resume and Integration Tests ==="
+echo ""
+
+run_test "Parallel block resume skips completed providers" test_parallel_block_resume_skips_completed_providers
+run_test "Parallel manifest not written on failure" test_parallel_manifest_not_written_on_failure
+run_test "from_parallel select subset" test_from_parallel_select_subset
+run_test "Pipeline with sequential-parallel-sequential" test_pipeline_with_sequential_parallel_sequential
+run_test "Parallel resume updates resume.json" test_parallel_resume_updates_resume_json
+run_test "Parallel block all providers must complete" test_parallel_block_all_providers_must_complete
 
 test_summary

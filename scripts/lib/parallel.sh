@@ -347,5 +347,209 @@ run_parallel_block() {
   return 0
 }
 
+#-------------------------------------------------------------------------------
+# Parallel Block Resume
+#-------------------------------------------------------------------------------
+
+# Resume a parallel block: skip completed providers, restart others
+# Usage: run_parallel_block_resume "$stage_idx" "$block_config" "$defaults" "$state_file" "$run_dir" "$session" "$block_dir"
+# Returns: 0 on success, 1 on any provider failure
+run_parallel_block_resume() {
+  local stage_idx=$1
+  local block_config=$2
+  local defaults=$3
+  local state_file=$4
+  local run_dir=$5
+  local session=$6
+  local block_dir=$7
+
+  # Parse block config
+  local block_name=$(echo "$block_config" | jq -r '.name // empty')
+  local providers=$(echo "$block_config" | jq -r '.parallel.providers | join(" ")')
+  local stages_json=$(echo "$block_config" | jq -c '.parallel.stages')
+  local stage_names=$(echo "$stages_json" | jq -r '.[].name' | tr '\n' ' ')
+
+  echo ""
+  echo "┌──────────────────────────────────────────────────────────────"
+  echo "│ Resuming Parallel Block: ${block_name:-parallel-$stage_idx}"
+  echo "│ Providers: $providers"
+  echo "└──────────────────────────────────────────────────────────────"
+  echo ""
+
+  # Determine which providers need to run
+  local providers_to_run=""
+  local skipped_providers=""
+
+  for provider in $providers; do
+    local provider_state="$block_dir/providers/$provider/state.json"
+    local resume_hint=""
+
+    if type get_parallel_resume_hint &>/dev/null; then
+      resume_hint=$(get_parallel_resume_hint "$block_dir" "$provider")
+    fi
+
+    local status="pending"
+    if [ -f "$provider_state" ]; then
+      status=$(jq -r '.status // "pending"' "$provider_state")
+    fi
+    if [ -n "$resume_hint" ]; then
+      local hint_status=$(echo "$resume_hint" | jq -r '.status // empty')
+      [ -n "$hint_status" ] && status="$hint_status"
+    fi
+
+    if [ "$status" = "complete" ]; then
+      skipped_providers="$skipped_providers $provider"
+      echo "  ○ $provider (already complete, skipping)"
+    else
+      providers_to_run="$providers_to_run $provider"
+      echo "  ● $provider (needs resume)"
+    fi
+  done
+
+  # If all providers are complete, just build manifest and return
+  if [ -z "$(echo "$providers_to_run" | tr -d ' ')" ]; then
+    echo ""
+    echo "  All providers already complete."
+    if type write_parallel_manifest &>/dev/null; then
+      write_parallel_manifest "$block_dir" "${block_name:-parallel}" "$stage_idx" "$stage_names" "$providers"
+    fi
+    if type update_stage &>/dev/null; then
+      update_stage "$state_file" "$stage_idx" "${block_name:-parallel-$stage_idx}" "complete"
+    fi
+    return 0
+  fi
+
+  # Update pipeline state
+  if type update_stage &>/dev/null; then
+    update_stage "$state_file" "$stage_idx" "${block_name:-parallel-$stage_idx}" "running"
+  fi
+
+  echo ""
+
+  # Track provider PIDs for parallel execution
+  declare -A provider_pids
+  local any_failed=false
+
+  # Spawn subshell for each provider that needs to run
+  for provider in $providers_to_run; do
+    (
+      # Export necessary functions and vars for subshell
+      export MOCK_MODE MOCK_FIXTURES_DIR STAGES_DIR LIB_DIR PROJECT_ROOT
+
+      # Initialize provider state if needed
+      if [ ! -f "$block_dir/providers/$provider/state.json" ]; then
+        if type init_provider_state &>/dev/null; then
+          init_provider_state "$block_dir" "$provider" "$session"
+        fi
+      fi
+
+      # Run provider stages sequentially
+      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults"
+    ) &
+    provider_pids[$provider]=$!
+    echo "  Started $provider (PID ${provider_pids[$provider]})"
+  done
+
+  # Wait for all resumed providers
+  local failed_providers=""
+  for provider in $providers_to_run; do
+    local pid=${provider_pids[$provider]}
+    if ! wait "$pid"; then
+      any_failed=true
+      failed_providers="$failed_providers $provider"
+      echo "  ✗ $provider failed"
+    else
+      echo "  ✓ $provider complete"
+    fi
+  done
+
+  # Handle failure
+  if [ "$any_failed" = true ]; then
+    echo ""
+    echo "  Parallel block resume failed. Failed providers:$failed_providers"
+    if type update_stage &>/dev/null; then
+      update_stage "$state_file" "$stage_idx" "${block_name:-parallel-$stage_idx}" "failed"
+    fi
+    return 1
+  fi
+
+  # Build manifest on success (now includes both previously-complete and newly-complete providers)
+  if type write_parallel_manifest &>/dev/null; then
+    write_parallel_manifest "$block_dir" "${block_name:-parallel}" "$stage_idx" "$stage_names" "$providers"
+  fi
+
+  # Update pipeline state
+  if type update_stage &>/dev/null; then
+    update_stage "$state_file" "$stage_idx" "${block_name:-parallel-$stage_idx}" "complete"
+  fi
+
+  echo ""
+  echo "  Parallel block resume complete. Manifest written to $block_dir/manifest.json"
+
+  return 0
+}
+
+# Check if a parallel block can be resumed
+# Usage: can_resume_parallel_block "$block_dir"
+# Returns: 0 if resumable (has incomplete providers), 1 if not
+can_resume_parallel_block() {
+  local block_dir=$1
+
+  if [ ! -d "$block_dir/providers" ]; then
+    return 1
+  fi
+
+  local has_incomplete=false
+  for provider_dir in "$block_dir/providers"/*; do
+    [ -d "$provider_dir" ] || continue
+    local provider_state="$provider_dir/state.json"
+    if [ -f "$provider_state" ]; then
+      local status=$(jq -r '.status // "pending"' "$provider_state")
+      if [ "$status" != "complete" ]; then
+        has_incomplete=true
+        break
+      fi
+    else
+      has_incomplete=true
+      break
+    fi
+  done
+
+  [ "$has_incomplete" = true ]
+}
+
+# Get resume status summary for a parallel block
+# Usage: get_parallel_block_resume_status "$block_dir"
+# Returns: JSON object with provider statuses
+get_parallel_block_resume_status() {
+  local block_dir=$1
+
+  local result="{}"
+  for provider_dir in "$block_dir/providers"/*; do
+    [ -d "$provider_dir" ] || continue
+    local provider=$(basename "$provider_dir")
+    local provider_state="$provider_dir/state.json"
+
+    local status="pending"
+    local current_stage=0
+    local iteration=0
+
+    if [ -f "$provider_state" ]; then
+      status=$(jq -r '.status // "pending"' "$provider_state")
+      current_stage=$(jq -r '.current_stage // 0' "$provider_state")
+      iteration=$(jq -r '.iteration_completed // 0' "$provider_state")
+    fi
+
+    result=$(echo "$result" | jq \
+      --arg p "$provider" \
+      --arg s "$status" \
+      --argjson stage "$current_stage" \
+      --argjson iter "$iteration" \
+      '. + {($p): {status: $s, current_stage: $stage, iteration_completed: $iter}}')
+  done
+
+  echo "$result"
+}
+
 # Export functions for use in subshells
-export -f run_parallel_provider run_parallel_block 2>/dev/null || true
+export -f run_parallel_provider run_parallel_block run_parallel_block_resume 2>/dev/null || true

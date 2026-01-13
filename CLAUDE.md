@@ -92,6 +92,7 @@ scripts/
 │   ├── test.sh               # Test framework utilities
 │   ├── mock.sh               # Mock execution for testing
 │   ├── provider.sh           # Provider abstraction (Claude, Codex)
+│   ├── parallel.sh           # Parallel block execution
 │   └── completions/          # Termination strategies
 │       ├── beads-empty.sh    # Stop when queue empty (type: queue)
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
@@ -223,6 +224,88 @@ jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} | xargs cat
 ```
 
 Available pipelines: `quick-refine.yaml` (3+3), `full-refine.yaml` (5+5), `deep-refine.yaml` (8+8)
+
+### Parallel Blocks
+
+Run multiple providers (Claude, Codex, etc.) concurrently with isolated contexts. Each provider runs stages sequentially within the block, but providers execute in parallel.
+
+```yaml
+name: parallel-refine
+description: Compare Claude and Codex refinements
+stages:
+  - name: setup
+    stage: improve-plan
+    termination:
+      type: fixed
+      iterations: 1
+
+  - name: dual-refine
+    parallel:
+      providers: [claude, codex]
+      stages:
+        - name: plan
+          stage: improve-plan
+          termination:
+            type: fixed
+            iterations: 1
+        - name: iterate
+          stage: improve-plan
+          termination:
+            type: judgment
+            consensus: 2
+            max: 5
+
+  - name: synthesize
+    stage: elegance
+    inputs:
+      from_parallel: iterate  # Read outputs from both providers
+```
+
+**Directory structure:**
+```
+.claude/pipeline-runs/{session}/
+├── stage-00-setup/...
+├── parallel-01-dual-refine/
+│   ├── manifest.json              # Aggregated outputs for downstream stages
+│   ├── resume.json                # Per-provider crash recovery hints
+│   └── providers/
+│       ├── claude/
+│       │   ├── progress.md        # Provider-isolated progress
+│       │   ├── state.json         # Provider-specific state
+│       │   ├── stage-00-plan/iterations/001/
+│       │   └── stage-01-iterate/iterations/001..003/
+│       └── codex/...
+└── stage-02-synthesize/...
+```
+
+**Key behaviors:**
+- Each provider has isolated progress and state (no cross-provider visibility within block)
+- Stages within a block run sequentially per provider
+- Providers execute concurrently (parallel)
+- Block waits for all providers before proceeding
+- Any provider failure fails the entire block
+- `from_parallel` downstream can select specific providers or all
+
+**Downstream consumption:**
+```yaml
+# Short form - gets all providers' outputs
+inputs:
+  from_parallel: iterate
+
+# Full form with options
+inputs:
+  from_parallel:
+    stage: iterate
+    block: dual-refine           # Optional if only one parallel block
+    providers: [claude]          # Filter to subset (default: all)
+    select: history              # "latest" (default) or "history" (all iterations)
+```
+
+**Crash recovery:**
+```bash
+./scripts/run.sh pipeline my-pipeline.yaml my-session --resume
+```
+On resume, completed providers are skipped; only failed/incomplete providers restart.
 
 ## Template Variables
 
