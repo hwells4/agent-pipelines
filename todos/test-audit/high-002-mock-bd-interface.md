@@ -1,10 +1,11 @@
 ---
 priority: high
-status: open
+status: completed
 file: scripts/tests/test_completions.sh
-lines: 131-158
+lines: 131-186
 type: bug
 created: 2026-01-12
+completed: 2026-01-12
 ---
 
 # Fix mock bd to match real interface

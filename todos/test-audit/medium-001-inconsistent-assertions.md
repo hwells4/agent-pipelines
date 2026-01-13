@@ -1,10 +1,11 @@
 ---
 priority: medium
-status: open
+status: completed
 files:
   - scripts/tests/*.sh
 type: improvement
 created: 2026-01-12
+completed: 2026-01-12
 ---
 
 # Standardize assertion style across tests

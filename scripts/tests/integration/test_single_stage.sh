@@ -50,23 +50,11 @@ test_single_stage_state_updates_each_iteration() {
 
   # Verify iteration_completed is not stuck at 0
   local completed=$(jq -r '.iteration_completed // 0' "$state_file")
-  if [ "$completed" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} iteration_completed updated (got: $completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} iteration_completed should be > 0 (got: $completed)"
-  fi
+  assert_gt "$completed" 0 "iteration_completed updated"
 
   # Verify history array has entries
   local history_len=$(jq '.history | length' "$state_file")
-  if [ "$history_len" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} History array populated (length: $history_len)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} History array should have entries (got: $history_len)"
-  fi
+  assert_gt "$history_len" 0 "History array populated"
 
   teardown_integration_test "$test_dir"
 }
@@ -83,13 +71,7 @@ test_single_stage_creates_iteration_dirs() {
   local run_dir=$(get_run_dir "$test_dir" "test-dirs")
   local iter_count=$(count_iterations "$run_dir")
 
-  if [ "$iter_count" -ge 1 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} Created iteration directories (count: $iter_count)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} Should create iteration directories (count: $iter_count)"
-  fi
+  assert_ge "$iter_count" 1 "Created iteration directories"
 
   teardown_integration_test "$test_dir"
 }
@@ -137,13 +119,7 @@ test_single_stage_stops_on_agent_decision() {
 
   # Should stop before max iterations due to agent decision
   local completed=$(jq -r '.iteration_completed // 0' "$state_file")
-  if [ "$completed" -le 3 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} Stopped early due to agent decision (at iteration: $completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} Should stop before max due to agent decision (got: $completed)"
-  fi
+  assert_le "$completed" 3 "Stopped early due to agent decision"
 
   teardown_integration_test "$test_dir"
 }
@@ -260,13 +236,8 @@ test_single_stage_accurate_iteration_tracking() {
   local iteration=$(jq -r '.iteration // 0' "$state_file")
   local completed=$(jq -r '.iteration_completed // 0' "$state_file")
 
-  if [ "$iteration" -ge 0 ] && [ "$completed" -ge 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} Iteration tracking values set (iter: $iteration, completed: $completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} Iteration tracking failed"
-  fi
+  assert_ge "$iteration" 0 "Iteration value set"
+  assert_ge "$completed" 0 "Iteration completed value set"
 
   teardown_integration_test "$test_dir"
 }

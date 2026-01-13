@@ -205,6 +205,60 @@ assert_not_contains() {
   fi
 }
 
+assert_gt() {
+  local actual=$1
+  local threshold=$2
+  local msg=${3:-"Value should be > $threshold"}
+
+  if [ "$actual" -gt "$threshold" ]; then
+    ((TESTS_PASSED++))
+    echo -e "  ${GREEN}✓${NC} $msg (got: $actual)"
+    return 0
+  else
+    ((TESTS_FAILED++))
+    echo -e "  ${RED}✗${NC} $msg"
+    echo -e "    Expected: > ${BLUE}$threshold${NC}"
+    echo -e "    Actual:   ${RED}$actual${NC}"
+    return 1
+  fi
+}
+
+assert_ge() {
+  local actual=$1
+  local threshold=$2
+  local msg=${3:-"Value should be >= $threshold"}
+
+  if [ "$actual" -ge "$threshold" ]; then
+    ((TESTS_PASSED++))
+    echo -e "  ${GREEN}✓${NC} $msg (got: $actual)"
+    return 0
+  else
+    ((TESTS_FAILED++))
+    echo -e "  ${RED}✗${NC} $msg"
+    echo -e "    Expected: >= ${BLUE}$threshold${NC}"
+    echo -e "    Actual:   ${RED}$actual${NC}"
+    return 1
+  fi
+}
+
+assert_le() {
+  local actual=$1
+  local threshold=$2
+  local msg=${3:-"Value should be <= $threshold"}
+
+  if [ "$actual" -le "$threshold" ]; then
+    ((TESTS_PASSED++))
+    echo -e "  ${GREEN}✓${NC} $msg (got: $actual)"
+    return 0
+  else
+    ((TESTS_FAILED++))
+    echo -e "  ${RED}✗${NC} $msg"
+    echo -e "    Expected: <= ${BLUE}$threshold${NC}"
+    echo -e "    Actual:   ${RED}$actual${NC}"
+    return 1
+  fi
+}
+
 assert_exit_code() {
   local expected=$1
   shift

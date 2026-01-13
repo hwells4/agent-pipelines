@@ -135,21 +135,8 @@ test_run_stage_tracks_iteration_in_state() {
   local iteration_completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
 
   # With iterations, we expect iteration and iteration_completed > 0
-  if [ "$iteration" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_stage updates iteration in state (got: $iteration)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_stage should update iteration in state (got: $iteration)"
-  fi
-
-  if [ "$iteration_completed" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_stage updates iteration_completed in state (got: $iteration_completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_stage should update iteration_completed (got: $iteration_completed)"
-  fi
+  assert_gt "$iteration" 0 "run_stage updates iteration in state"
+  assert_gt "$iteration_completed" 0 "run_stage updates iteration_completed in state"
 
   # Cleanup
   disable_mock_mode
@@ -185,21 +172,8 @@ test_run_pipeline_tracks_iteration_in_state() {
   local iteration_completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
 
   # run_pipeline should also update iteration tracking
-  if [ "$iteration" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_pipeline updates iteration in state (got: $iteration)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_pipeline should update iteration in state (got: $iteration)"
-  fi
-
-  if [ "$iteration_completed" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_pipeline updates iteration_completed in state (got: $iteration_completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_pipeline should update iteration_completed (got: $iteration_completed)"
-  fi
+  assert_gt "$iteration" 0 "run_pipeline updates iteration in state"
+  assert_gt "$iteration_completed" 0 "run_pipeline updates iteration_completed in state"
 
   # Cleanup
   disable_mock_mode
@@ -238,21 +212,8 @@ test_both_paths_produce_equivalent_state_tracking() {
   local pipeline_iter=$(jq -r '.iteration_completed // 0' "$pipeline_state" 2>/dev/null)
 
   # Both paths should track iterations (the key contract)
-  if [ "$stage_iter" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_stage path tracks iterations (got: $stage_iter)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_stage path tracks iterations (got: $stage_iter)"
-  fi
-
-  if [ "$pipeline_iter" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} run_pipeline path tracks iterations (got: $pipeline_iter)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} run_pipeline path tracks iterations (got: $pipeline_iter)"
-  fi
+  assert_gt "$stage_iter" 0 "run_stage path tracks iterations"
+  assert_gt "$pipeline_iter" 0 "run_pipeline path tracks iterations"
 
   # Both should track the same number of iterations
   assert_eq "$stage_iter" "$pipeline_iter" "Both paths should track same iteration count"
@@ -352,21 +313,8 @@ test_regression_guard_iteration_tracking() {
   local iteration_completed=$(jq -r '.iteration_completed // 0' "$state_file" 2>/dev/null)
   local iteration_started=$(jq -r '.iteration_started // "null"' "$state_file" 2>/dev/null)
 
-  if [ "$iteration" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} REGRESSION GUARD: run_pipeline calls mark_iteration_started (iteration=$iteration)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} REGRESSION GUARD: run_pipeline must call mark_iteration_started (iteration=$iteration)"
-  fi
-
-  if [ "$iteration_completed" -gt 0 ]; then
-    ((TESTS_PASSED++))
-    echo -e "  ${GREEN}✓${NC} REGRESSION GUARD: run_pipeline calls mark_iteration_completed (iteration_completed=$iteration_completed)"
-  else
-    ((TESTS_FAILED++))
-    echo -e "  ${RED}✗${NC} REGRESSION GUARD: run_pipeline must call mark_iteration_completed (iteration_completed=$iteration_completed)"
-  fi
+  assert_gt "$iteration" 0 "REGRESSION GUARD: run_pipeline calls mark_iteration_started"
+  assert_gt "$iteration_completed" 0 "REGRESSION GUARD: run_pipeline calls mark_iteration_completed"
 
   # iteration_started should be null after clean completion
   assert_eq "null" "$iteration_started" \

@@ -1,12 +1,13 @@
 ---
 priority: high
-status: open
+status: completed
 files:
   - scripts/tests/test_single_stage.sh
   - scripts/tests/test_multi_stage.sh
   - scripts/tests/test_completion.sh
 type: bug
 created: 2026-01-12
+completed: 2026-01-12
 ---
 
 # Fix over-graceful pass-through pattern in integration tests

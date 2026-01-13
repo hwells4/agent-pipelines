@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/lib/test.sh"
 source "$SCRIPT_DIR/lib/mock.sh"
 
+# Dedicated test fixtures directory (decoupled from stage fixtures)
+# This prevents test breakage when stage fixtures are modified
+TEST_FIXTURES_DIR="$SCRIPT_DIR/tests/fixtures/mock-only"
+
 #-------------------------------------------------------------------------------
 # Mock Mode Control Tests
 #-------------------------------------------------------------------------------
@@ -66,23 +70,25 @@ test_get_mock_response_default() {
 
 test_get_mock_response_iteration_specific() {
   # Should return iteration-specific fixture when it exists
-  enable_mock_mode "$SCRIPT_DIR/stages/improve-plan/fixtures"
+  # Uses dedicated test fixtures (decoupled from stage fixtures)
+  enable_mock_mode "$TEST_FIXTURES_DIR"
 
   local response=$(get_mock_response 1)
-  assert_contains "$response" "Initial Review" "Returns iteration-1 fixture"
+  assert_contains "$response" "First iteration" "Returns iteration-1 fixture"
 
   response=$(get_mock_response 2)
-  assert_contains "$response" "Refinement" "Returns iteration-2 fixture"
+  assert_contains "$response" "Second iteration" "Returns iteration-2 fixture"
 
   response=$(get_mock_response 3)
-  assert_contains "$response" "Confirmation" "Returns iteration-3 fixture"
+  assert_contains "$response" "Third iteration" "Returns iteration-3 fixture"
 
   disable_mock_mode
 }
 
 test_get_mock_status_sequence() {
   # v3: Fixtures should have status-N.json with correct decisions
-  enable_mock_mode "$SCRIPT_DIR/stages/improve-plan/fixtures"
+  # Uses dedicated test fixtures (decoupled from stage fixtures)
+  enable_mock_mode "$TEST_FIXTURES_DIR"
 
   local status1=$(get_mock_status 1)
   local decision1=$(echo "$status1" | jq -r '.decision')
@@ -105,7 +111,8 @@ test_get_mock_status_sequence() {
 
 test_get_mock_status() {
   # Should return status JSON for iteration
-  enable_mock_mode "$SCRIPT_DIR/stages/improve-plan/fixtures"
+  # Uses dedicated test fixtures (decoupled from stage fixtures)
+  enable_mock_mode "$TEST_FIXTURES_DIR"
 
   local status=$(get_mock_status 1)
   local decision=$(echo "$status" | jq -r '.decision')

@@ -1,0 +1,4 @@
+# Mock Default Response
+
+This is the default mock response for testing.
+Mock response content for verification.

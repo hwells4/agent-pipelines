@@ -1,10 +1,11 @@
 ---
 priority: critical
-status: open
+status: completed
 file: scripts/tests/test_single_stage.sh
 lines: 100-128
 type: bug
 created: 2026-01-12
+completed: 2026-01-12
 ---
 
 # Fix always-pass test: test_single_stage_writes_output_snapshots

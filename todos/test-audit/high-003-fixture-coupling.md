@@ -1,10 +1,11 @@
 ---
 priority: high
-status: open
+status: completed
 file: scripts/tests/test_mock.sh
 lines: 62-80
 type: bug
 created: 2026-01-12
+completed: 2026-01-12
 ---
 
 # Fix fixture coupling in test_get_mock_response_iteration_specific
