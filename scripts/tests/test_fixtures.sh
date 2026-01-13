@@ -2,6 +2,7 @@
 # Tests for loop fixtures
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/test.sh"
 STAGES_DIR="$SCRIPT_DIR/stages"
 
 #-------------------------------------------------------------------------------
@@ -116,3 +117,5 @@ run_test "Refine-beads fixtures exist" test_refine_beads_fixtures_exist
 run_test "Status JSON valid schema" test_status_json_valid_schema
 run_test "Improve-plan status sequence" test_improve_plan_status_sequence
 run_test "Plateau fixtures have required fields" test_plateau_fixtures_have_required_fields
+
+test_summary

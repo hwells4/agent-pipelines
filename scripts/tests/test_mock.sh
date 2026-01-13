@@ -2,6 +2,7 @@
 # Tests for mock execution library (scripts/lib/mock.sh)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/test.sh"
 source "$SCRIPT_DIR/lib/mock.sh"
 
 #-------------------------------------------------------------------------------
@@ -145,3 +146,5 @@ run_test "Get mock response (iteration-specific)" test_get_mock_response_iterati
 run_test "Mock status sequence (v3)" test_get_mock_status_sequence
 run_test "Get mock status" test_get_mock_status
 run_test "Generate default status" test_generate_default_status
+
+test_summary

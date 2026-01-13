@@ -2,6 +2,7 @@
 # Context manifest tests - verify v3 context.json generation works
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/test.sh"
 source "$SCRIPT_DIR/lib/context.sh"
 
 #-------------------------------------------------------------------------------

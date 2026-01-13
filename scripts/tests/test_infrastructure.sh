@@ -2,6 +2,7 @@
 # Infrastructure tests - verify the test harness and core dependencies work
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/test.sh"
 
 #-------------------------------------------------------------------------------
 # Dependency Tests
@@ -120,3 +121,5 @@ run_test "Loops have required files" test_loops_have_required_files
 run_test "assert_eq works" test_assert_eq_works
 run_test "assert_contains works" test_assert_contains_works
 run_test "assert_json_field works" test_assert_json_field_works
+
+test_summary

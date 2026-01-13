@@ -2,6 +2,7 @@
 # Tests for validation library (scripts/lib/validate.sh)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/lib/test.sh"
 source "$SCRIPT_DIR/lib/validate.sh"
 
 #-------------------------------------------------------------------------------
@@ -80,3 +81,5 @@ run_test "Validate nonexistent loop fails" test_validate_nonexistent_loop
 run_test "Validate full-refine pipeline" test_validate_full_refine_pipeline
 run_test "Validate quick-refine pipeline" test_validate_quick_refine_pipeline
 run_test "Validate deep-refine pipeline" test_validate_deep_refine_pipeline
+
+test_summary
