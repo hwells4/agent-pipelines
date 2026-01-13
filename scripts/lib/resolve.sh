@@ -15,6 +15,7 @@
 #   ${PERSPECTIVE}                - Current perspective (for fan-out)
 #   ${OUTPUT_PATH}                - Path for tracked output (if configured in stage.yaml)
 #   ${PROGRESS_FILE}              - Alias for ${PROGRESS}
+#   ${CONTEXT}                    - Optional stage-specific context injection
 #
 # Note: Inter-stage inputs are handled via context.json (see inputs.from_stage)
 # Agents should read ${CTX} and parse .inputs.from_stage for previous stage outputs
@@ -61,18 +62,19 @@ resolve_prompt() {
   # Legacy mode: second arg is a JSON object with variables
   local vars_json="$vars"
 
-  # Extract variables from JSON
-  local session=$(echo "$vars_json" | jq -r '.session // empty')
-  local iteration=$(echo "$vars_json" | jq -r '.iteration // empty')
-  local index=$(echo "$vars_json" | jq -r '.index // empty')
-  local perspective=$(echo "$vars_json" | jq -r '.perspective // empty')
-  local output_file=$(echo "$vars_json" | jq -r '.output // empty')
-  local output_path=$(echo "$vars_json" | jq -r '.output_path // empty')
-  local progress_file=$(echo "$vars_json" | jq -r '.progress // empty')
-  local run_dir=$(echo "$vars_json" | jq -r '.run_dir // empty')
-  local stage_idx=$(echo "$vars_json" | jq -r '.stage_idx // "0"')
-  local context_file=$(echo "$vars_json" | jq -r '.context_file // empty')
-  local status_file=$(echo "$vars_json" | jq -r '.status_file // empty')
+  # Extract variables from JSON (use here-strings to preserve escaped newlines)
+  local session=$(jq -r '.session // empty' <<< "$vars_json")
+  local iteration=$(jq -r '.iteration // empty' <<< "$vars_json")
+  local index=$(jq -r '.index // empty' <<< "$vars_json")
+  local perspective=$(jq -r '.perspective // empty' <<< "$vars_json")
+  local output_file=$(jq -r '.output // empty' <<< "$vars_json")
+  local output_path=$(jq -r '.output_path // empty' <<< "$vars_json")
+  local progress_file=$(jq -r '.progress // empty' <<< "$vars_json")
+  local run_dir=$(jq -r '.run_dir // empty' <<< "$vars_json")
+  local stage_idx=$(jq -r '.stage_idx // "0"' <<< "$vars_json")
+  local context_file=$(jq -r '.context_file // empty' <<< "$vars_json")
+  local status_file=$(jq -r '.status_file // empty' <<< "$vars_json")
+  local context=$(jq -r '.context // empty' <<< "$vars_json")
 
   # v3 variables (if context_file provided)
   if [ -n "$context_file" ]; then
@@ -92,6 +94,7 @@ resolve_prompt() {
   resolved="${resolved//\$\{OUTPUT_PATH\}/$output_path}"
   resolved="${resolved//\$\{PROGRESS\}/$progress_file}"
   resolved="${resolved//\$\{PROGRESS_FILE\}/$progress_file}"
+  resolved="${resolved//\$\{CONTEXT\}/$context}"
 
   echo "$resolved"
 }

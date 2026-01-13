@@ -29,6 +29,8 @@ stages:
     completion: plateau    # Optional: Early-stop strategy
     parallel: false        # Optional: Hint for parallel execution (not yet implemented)
     perspectives: []       # Optional: Array of values for ${PERSPECTIVE}
+    context: |             # Optional: Injected into prompt as ${CONTEXT}
+      Custom instructions for this stage instance
 
     # Prompt source - use ONE of these:
     stage: stage-name        # Option A: Use existing loop type's prompt
@@ -50,6 +52,7 @@ Use these in your prompts - they're resolved at runtime:
 | `${PERSPECTIVE}` | Current item from perspectives array | `security` |
 | `${OUTPUT}` | Path to write this run's output | `.claude/pipeline-runs/.../run-0.md` |
 | `${PROGRESS}` | Path to accumulating progress file | `.claude/pipeline-runs/.../progress.md` |
+| `${CONTEXT}` | Optional stage-specific context injection | `Focus on auth module...` |
 
 **Stage-style variables** (for compatibility when using `stage:`):
 

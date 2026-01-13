@@ -3,6 +3,8 @@
 Read context from: ${CTX}
 Progress file: ${PROGRESS}
 
+${CONTEXT}
+
 ## Your Task
 
 1. Read `${PROGRESS}`

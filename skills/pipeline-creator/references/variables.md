@@ -13,6 +13,7 @@ Use these in all new stage prompts.
 | `${PROGRESS}` | Path | Path to progress file (accumulated context) |
 | `${ITERATION}` | Number | Current iteration (1-based) |
 | `${SESSION_NAME}` | String | Session identifier |
+| `${CONTEXT}` | Text | Optional stage-specific context (from stage.yaml or pipeline.yaml) |
 
 ## Multi-Stage Variables
 

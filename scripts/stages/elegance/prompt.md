@@ -4,6 +4,8 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Iteration: ${ITERATION}
 
+${CONTEXT}
+
 You are here to make this codebase stunningly elegant. The kind of code that if you placed it in front of Jeff Dean or Fabrice Bellard, they would be genuinely impressed by how beautiful, simple, and clear it is. Clarity and simplicity are your north stars.
 
 This is not a checklist task. You have full latitude to explore, investigate, and use your intelligence as you see fit. Trust your instincts. Follow threads that interest you. Go deep where depth is warranted.

@@ -144,6 +144,7 @@ If validation fails, fix the issue before presenting the result.
 | `provider` | claude or codex (default: claude) |
 | `model` | opus, sonnet, haiku (claude) or gpt-5.2-codex (codex) |
 | `delay` | Seconds between iterations |
+| `context` | Optional text injected into prompt as ${CONTEXT} |
 
 ### Stage (prompt.md)
 
@@ -161,6 +162,7 @@ If validation fails, fix the issue before presenting the result.
 | `stages[].loop` | Which stage to run |
 | `stages[].runs` | Max iterations for this stage |
 | `stages[].inputs` | Dependencies on previous stages |
+| `stages[].context` | Override stage context for this pipeline |
 
 ## Workflows Index
 

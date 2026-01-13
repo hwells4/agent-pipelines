@@ -113,6 +113,7 @@ load_stage() {
   STAGE_PROMPT_VALUE=$(json_get "$STAGE_CONFIG" ".prompt" "")
   STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
   STAGE_PROVIDER=$(json_get "$STAGE_CONFIG" ".provider" "claude")
+  STAGE_CONTEXT=$(json_get "$STAGE_CONFIG" ".context" "")
 
   # Export for completion strategies
   export MIN_ITERATIONS="$STAGE_MIN_ITERATIONS"
@@ -258,7 +259,8 @@ run_stage() {
       --arg stage_idx "$stage_idx" \
       --arg context_file "$context_file" \
       --arg status_file "$(dirname "$context_file")/status.json" \
-      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file}')
+      --arg context "$STAGE_CONTEXT" \
+      '{session: $session, iteration: $iteration, index: $index, progress: $progress, output_path: $output_path, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, context: $context}')
 
     # Resolve prompt
     local resolved_prompt=$(resolve_prompt "$STAGE_PROMPT" "$vars_json")
@@ -502,6 +504,8 @@ run_pipeline() {
     # v3: Get inputs configuration
     local stage_inputs_from=$(json_get "$pipeline_json" ".stages[$stage_idx].inputs.from" "")
     local stage_inputs_select=$(json_get "$pipeline_json" ".stages[$stage_idx].inputs.select" "latest")
+    # v4: Get context injection (overridable per stage)
+    local stage_context=$(json_get "$pipeline_json" ".stages[$stage_idx].context" "")
 
     # Create stage output directory (v3 format: stage-00-name)
     local stage_dir="$run_dir/stage-$(printf '%02d' $stage_idx)-$stage_name"
@@ -529,6 +533,7 @@ run_pipeline() {
       load_stage "$stage_type" || exit 1
       [ -z "$stage_prompt" ] && stage_prompt="$STAGE_PROMPT"
       [ -z "$stage_completion" ] && stage_completion="$STAGE_COMPLETION"
+      [ -z "$stage_context" ] && stage_context="$STAGE_CONTEXT"
     else
       # Bug fix: loop-agents-qnx - Inline prompt stages default to fixed-n termination
       [ -z "$stage_completion" ] && stage_completion="fixed-n"
@@ -605,7 +610,8 @@ run_pipeline() {
         --arg stage_idx "$stage_idx" \
         --arg context_file "$context_file" \
         --arg status_file "$status_file" \
-        '{session: $session, iteration: $iteration, index: $index, perspective: $perspective, output: $output, progress: $progress, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file}')
+        --arg context "$stage_context" \
+        '{session: $session, iteration: $iteration, index: $index, perspective: $perspective, output: $output, progress: $progress, run_dir: $run_dir, stage_idx: $stage_idx, context_file: $context_file, status_file: $status_file, context: $context}')
 
       # Resolve prompt
       local resolved_prompt=$(resolve_prompt "$stage_prompt" "$vars_json")

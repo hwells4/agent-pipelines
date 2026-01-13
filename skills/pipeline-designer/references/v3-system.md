@@ -13,6 +13,7 @@ The V3 system uses structured context and status files. All pipelines use this f
 | `${PROGRESS}` | Path to progress file (accumulated context) |
 | `${ITERATION}` | Current iteration number (1-based) |
 | `${SESSION_NAME}` | Session identifier |
+| `${CONTEXT}` | Optional stage-specific context injection (from config) |
 
 ### Multi-Stage Variables
 
@@ -111,6 +112,8 @@ termination:
 check_before: true       # Check termination before first iteration
 delay: 3                 # Seconds between iterations
 model: opus              # opus | sonnet | haiku
+context: |               # Optional: injected into prompt as ${CONTEXT}
+  Custom instructions for this stage instance
 ```
 
 ## Pipeline Configuration
@@ -123,6 +126,9 @@ stages:
   - name: stage-one
     loop: existing-stage-type  # Directory in scripts/stages/
     runs: 5                    # Max iterations for this stage
+    context: |                 # Optional: override base stage context
+      Focus on the authentication module.
+      Create beads for any issues found.
 
   - name: stage-two
     loop: another-stage-type
