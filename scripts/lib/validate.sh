@@ -225,6 +225,96 @@ validate_pipeline() {
   _validate_pipeline_impl "$file" "$name" "$quiet"
 }
 
+# Internal: Validate a parallel block
+# Usage: _validate_parallel_block "$stage_json" "$stage_name" "$stage_idx"
+# Outputs lines prefixed with ERROR:, WARNING:, or STAGE: for the caller to parse
+# Returns 0 if valid, 1 if errors found
+_validate_parallel_block() {
+  local stage_json=$1
+  local stage_name=$2
+  local stage_idx=$3
+  local had_error=0
+
+  local parallel=$(echo "$stage_json" | jq '.parallel')
+
+  # P012: parallel.providers required and non-empty
+  local providers=$(echo "$parallel" | jq -r '.providers // empty')
+  if [ -z "$providers" ] || [ "$providers" = "null" ]; then
+    echo "ERROR:Parallel block '$stage_name': missing 'providers' array"
+    return 1
+  fi
+
+  local providers_len=$(echo "$parallel" | jq '.providers | length')
+  if [ "$providers_len" -eq 0 ]; then
+    echo "ERROR:Parallel block '$stage_name': 'providers' array cannot be empty"
+    return 1
+  fi
+
+  # P013: parallel.stages required and non-empty
+  local block_stages=$(echo "$parallel" | jq -r '.stages // empty')
+  if [ -z "$block_stages" ] || [ "$block_stages" = "null" ]; then
+    echo "ERROR:Parallel block '$stage_name': missing 'stages' array"
+    return 1
+  fi
+
+  local block_stages_len=$(echo "$parallel" | jq '.stages | length')
+  if [ "$block_stages_len" -eq 0 ]; then
+    echo "ERROR:Parallel block '$stage_name': 'stages' array cannot be empty"
+    return 1
+  fi
+
+  # Track stage names within this block for uniqueness
+  local block_stage_names=""
+
+  # Validate each stage in the parallel block
+  for ((j=0; j<block_stages_len; j++)); do
+    local block_stage=$(echo "$parallel" | jq -r ".stages[$j]")
+    local block_stage_name=$(echo "$block_stage" | jq -r '.name // empty')
+
+    # Each block stage needs a name
+    if [ -z "$block_stage_name" ]; then
+      echo "ERROR:Parallel block '$stage_name', stage $j: missing 'name' field"
+      had_error=1
+      continue
+    fi
+
+    # P016: Stage names unique within block (use string matching for bash 3.x compat)
+    if [[ " $block_stage_names " == *" $block_stage_name "* ]]; then
+      echo "ERROR:Parallel block '$stage_name': duplicate stage name '$block_stage_name'"
+      had_error=1
+    fi
+    block_stage_names="$block_stage_names $block_stage_name"
+    echo "STAGE:$block_stage_name"
+
+    # P014: No nested parallel blocks
+    local nested_parallel=$(echo "$block_stage" | jq -e '.parallel' 2>/dev/null)
+    if [ "$nested_parallel" != "null" ] && [ -n "$nested_parallel" ]; then
+      echo "ERROR:Parallel block '$stage_name': nested parallel blocks not allowed (found in '$block_stage_name')"
+      had_error=1
+    fi
+
+    # P015: No provider override within block stages
+    local stage_provider=$(echo "$block_stage" | jq -r '.provider // empty')
+    if [ -n "$stage_provider" ] && [ "$stage_provider" != "null" ]; then
+      echo "ERROR:Parallel block '$stage_name': stage '$block_stage_name' cannot override provider (block controls provider)"
+      had_error=1
+    fi
+
+    # Validate stage reference exists
+    local stage_ref=$(echo "$block_stage" | jq -r '.stage // empty')
+    if [ -n "$stage_ref" ]; then
+      local stages_base="${STAGES_DIR:-${VALIDATE_SCRIPT_DIR}/../stages}"
+      local stage_dir="$stages_base/$stage_ref"
+      if [ ! -d "$stage_dir" ]; then
+        echo "ERROR:Parallel block '$stage_name', stage '$block_stage_name': references unknown stage '$stage_ref'"
+        had_error=1
+      fi
+    fi
+  done
+
+  return $had_error
+}
+
 # Internal: Common pipeline validation logic
 # Usage: _validate_pipeline_impl "/path/to/file.yaml" "display-name" [--quiet]
 _validate_pipeline_impl() {
@@ -259,6 +349,8 @@ _validate_pipeline_impl() {
 
   # Collect stage names for reference validation
   local stage_names=()
+  # Collect parallel block stage names for from_parallel validation
+  local parallel_stage_names=()
 
   # Validate each stage
   for ((i=0; i<stages_len; i++)); do
@@ -276,6 +368,32 @@ _validate_pipeline_impl() {
       errors+=("Duplicate stage name: $stage_name")
     fi
     stage_names+=("$stage_name")
+
+    # Check if this is a parallel block
+    local is_parallel=$(echo "$stage" | jq -e '.parallel' 2>/dev/null)
+    if [ "$is_parallel" != "null" ] && [ -n "$is_parallel" ]; then
+      # Validate parallel block and parse output
+      local block_output
+      block_output=$(_validate_parallel_block "$stage" "$stage_name" "$i")
+      local block_result=$?
+
+      # Parse output lines
+      while IFS= read -r line; do
+        case "$line" in
+          ERROR:*)
+            errors+=("${line#ERROR:}")
+            ;;
+          WARNING:*)
+            warnings+=("${line#WARNING:}")
+            ;;
+          STAGE:*)
+            parallel_stage_names+=("${line#STAGE:}")
+            ;;
+        esac
+      done <<< "$block_output"
+
+      continue
+    fi
 
     # P007: Each stage has stage, loop (legacy), or prompt
     local stage_ref=$(echo "$stage" | jq -r ".stage // empty")
@@ -323,6 +441,25 @@ _validate_pipeline_impl() {
     if [ $i -eq 0 ] && [ -n "$stage_prompt" ]; then
       if [[ "$stage_prompt" == *'${INPUTS'* ]]; then
         warnings+=("Stage '$stage_name': first stage uses \${INPUTS} which will be empty")
+      fi
+    fi
+
+    # P017: Check from_parallel references
+    local from_parallel=$(echo "$stage" | jq -r '.inputs.from_parallel // empty')
+    if [ -n "$from_parallel" ] && [ "$from_parallel" != "null" ]; then
+      # Handle both shorthand (string) and full object form
+      local ref_stage=""
+      # If it doesn't start with {, it's a simple string reference
+      if [[ "$from_parallel" != "{"* ]]; then
+        ref_stage="$from_parallel"
+      else
+        ref_stage=$(echo "$from_parallel" | jq -r '.stage // empty')
+      fi
+
+      # Check reference exists (use string matching for bash 3.x compatibility)
+      local parallel_names_str=" ${parallel_stage_names[*]} "
+      if [ -n "$ref_stage" ] && [[ "$parallel_names_str" != *" $ref_stage "* ]]; then
+        errors+=("Stage '$stage_name': from_parallel references unknown stage '$ref_stage'")
       fi
     fi
   done
