@@ -572,6 +572,385 @@ test_parallel_resume_json_written() {
 }
 
 #-------------------------------------------------------------------------------
+# Phase 3: Context Generation Tests
+#-------------------------------------------------------------------------------
+
+test_context_parallel_scope_generates() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+
+  # Initialize provider states
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  # Generate context for stage within a parallel block (for claude provider)
+  # Pass parallel_scope in stage_config
+  local stage_config=$(jq -n \
+    --arg id "plan" \
+    --arg name "plan" \
+    --argjson index 0 \
+    --arg scope_root "$block_dir/providers/claude" \
+    --arg pipeline_root "$run_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      parallel_scope: {
+        scope_root: $scope_root,
+        pipeline_root: $pipeline_root
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$block_dir/providers/claude")
+
+  # Context should be created within the provider's scope
+  assert_file_exists "$context_file" "context.json should be generated in provider scope"
+  assert_contains "$context_file" "providers/claude" "Context should be under claude provider dir"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_context_parallel_same_provider_only() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+
+  # Initialize provider states
+  init_provider_state "$block_dir" "claude" "test-session"
+  init_provider_state "$block_dir" "codex" "test-session"
+
+  # Create stage-00-plan outputs for both providers (simulating iteration 1 completion)
+  mkdir -p "$block_dir/providers/claude/stage-00-plan/iterations/001"
+  echo "Claude plan output" > "$block_dir/providers/claude/stage-00-plan/iterations/001/output.md"
+
+  mkdir -p "$block_dir/providers/codex/stage-00-plan/iterations/001"
+  echo "Codex plan output" > "$block_dir/providers/codex/stage-00-plan/iterations/001/output.md"
+
+  # Now generate context for stage-01-iterate for claude (should only see claude's plan)
+  # This simulates: inputs: { from: plan }
+  local stage_config=$(jq -n \
+    --arg id "iterate" \
+    --arg name "iterate" \
+    --argjson index 1 \
+    --arg scope_root "$block_dir/providers/claude" \
+    --arg pipeline_root "$run_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {from: "plan", select: "latest"},
+      parallel_scope: {
+        scope_root: $scope_root,
+        pipeline_root: $pipeline_root
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$block_dir/providers/claude")
+
+  # Check that from_stage only contains claude's output, not codex's
+  local from_stage=$(jq -r '.inputs.from_stage.plan[0] // empty' "$context_file")
+
+  # from_stage should reference claude's plan output
+  assert_contains "$from_stage" "/providers/claude/" "Claude's iterate should only see Claude's plan output"
+  assert_not_contains "$from_stage" "/providers/codex/" "Claude's iterate should NOT see Codex's output"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_context_from_parallel_latest() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block with completed outputs
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+
+  # Create stage outputs for both providers
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/001"
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/002"
+  echo "Claude iterate output 1" > "$block_dir/providers/claude/stage-00-iterate/iterations/001/output.md"
+  echo "Claude iterate output 2" > "$block_dir/providers/claude/stage-00-iterate/iterations/002/output.md"
+
+  mkdir -p "$block_dir/providers/codex/stage-00-iterate/iterations/001"
+  echo "Codex iterate output 1" > "$block_dir/providers/codex/stage-00-iterate/iterations/001/output.md"
+
+  # Create provider state files with completion info
+  cat > "$block_dir/providers/claude/state.json" << 'EOF'
+{
+  "provider": "claude",
+  "status": "complete",
+  "stages": [{"name": "iterate", "iterations": 2, "termination_reason": "plateau"}]
+}
+EOF
+
+  cat > "$block_dir/providers/codex/state.json" << 'EOF'
+{
+  "provider": "codex",
+  "status": "complete",
+  "stages": [{"name": "iterate", "iterations": 1, "termination_reason": "fixed"}]
+}
+EOF
+
+  # Write manifest
+  write_parallel_manifest "$block_dir" "dual-refine" 1 "iterate" "claude codex"
+
+  # Now create a downstream stage (synthesize) that uses from_parallel
+  mkdir -p "$run_dir/stage-02-synthesize/iterations/001"
+
+  local stage_config=$(jq -n \
+    --arg id "synthesize" \
+    --arg name "synthesize" \
+    --argjson index 2 \
+    --arg block_dir "$block_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {
+        from_parallel: {
+          stage: "iterate",
+          block: "dual-refine",
+          select: "latest"
+        }
+      },
+      parallel_blocks: {
+        "dual-refine": {
+          manifest_path: ($block_dir + "/manifest.json")
+        }
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$run_dir")
+
+  # Check that from_parallel has both providers
+  assert_json_field_exists "$context_file" ".inputs.from_parallel" "from_parallel should exist"
+  assert_json_field_exists "$context_file" ".inputs.from_parallel.providers.claude.output" \
+    "Should have claude output"
+  assert_json_field_exists "$context_file" ".inputs.from_parallel.providers.codex.output" \
+    "Should have codex output"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_context_from_parallel_history() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block with multiple iterations
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+
+  # Create multiple iterations for claude
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/001"
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/002"
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/003"
+  echo "Claude iterate 1" > "$block_dir/providers/claude/stage-00-iterate/iterations/001/output.md"
+  echo "Claude iterate 2" > "$block_dir/providers/claude/stage-00-iterate/iterations/002/output.md"
+  echo "Claude iterate 3" > "$block_dir/providers/claude/stage-00-iterate/iterations/003/output.md"
+
+  mkdir -p "$block_dir/providers/codex/stage-00-iterate/iterations/001"
+  mkdir -p "$block_dir/providers/codex/stage-00-iterate/iterations/002"
+  echo "Codex iterate 1" > "$block_dir/providers/codex/stage-00-iterate/iterations/001/output.md"
+  echo "Codex iterate 2" > "$block_dir/providers/codex/stage-00-iterate/iterations/002/output.md"
+
+  # Create provider state files
+  cat > "$block_dir/providers/claude/state.json" << 'EOF'
+{
+  "provider": "claude",
+  "status": "complete",
+  "stages": [{"name": "iterate", "iterations": 3, "termination_reason": "plateau"}]
+}
+EOF
+
+  cat > "$block_dir/providers/codex/state.json" << 'EOF'
+{
+  "provider": "codex",
+  "status": "complete",
+  "stages": [{"name": "iterate", "iterations": 2, "termination_reason": "max"}]
+}
+EOF
+
+  # Write manifest
+  write_parallel_manifest "$block_dir" "dual-refine" 1 "iterate" "claude codex"
+
+  # Create downstream stage requesting history
+  mkdir -p "$run_dir/stage-02-synthesize/iterations/001"
+
+  local stage_config=$(jq -n \
+    --arg id "synthesize" \
+    --arg name "synthesize" \
+    --argjson index 2 \
+    --arg block_dir "$block_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {
+        from_parallel: {
+          stage: "iterate",
+          block: "dual-refine",
+          select: "history"
+        }
+      },
+      parallel_blocks: {
+        "dual-refine": {
+          manifest_path: ($block_dir + "/manifest.json")
+        }
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$run_dir")
+
+  # Check that history arrays contain multiple entries
+  local claude_history_len=$(jq '.inputs.from_parallel.providers.claude.history | length' "$context_file")
+  local codex_history_len=$(jq '.inputs.from_parallel.providers.codex.history | length' "$context_file")
+
+  assert_gt "$claude_history_len" 1 "Claude history should contain multiple iterations"
+  assert_gt "$codex_history_len" 1 "Codex history should contain multiple iterations"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_block_stage_inputs_can_read_previous_stage() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Create a pre-block stage output (setup stage at index 0)
+  mkdir -p "$run_dir/stage-00-setup/iterations/001"
+  echo "Setup stage output" > "$run_dir/stage-00-setup/iterations/001/output.md"
+
+  # Initialize parallel block at index 1
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude")
+  init_provider_state "$block_dir" "claude" "test-session"
+
+  # Generate context for first stage inside the block, requesting inputs from setup
+  # parallel_scope.pipeline_root allows fallback to the main run_dir
+  local stage_config=$(jq -n \
+    --arg id "plan" \
+    --arg name "plan" \
+    --argjson index 0 \
+    --arg scope_root "$block_dir/providers/claude" \
+    --arg pipeline_root "$run_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {from: "setup", select: "latest"},
+      parallel_scope: {
+        scope_root: $scope_root,
+        pipeline_root: $pipeline_root
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$block_dir/providers/claude")
+
+  # Check that from_stage includes setup output from the main pipeline dir
+  local from_setup=$(jq -r '.inputs.from_stage.setup[0] // empty' "$context_file")
+
+  # Check that the path is non-empty and points to the setup stage
+  if [ -n "$from_setup" ]; then
+    assert_true "true" "from_setup should not be empty"
+  else
+    assert_true "false" "from_setup should not be empty"
+  fi
+  assert_contains "$from_setup" "/stage-00-setup/" "Plan should reference the setup stage output"
+
+  cleanup_test_dir "$test_dir"
+}
+
+test_from_parallel_provider_subset() {
+  local test_dir=$(create_test_dir)
+  local run_dir="$test_dir/.claude/pipeline-runs/test-session"
+  mkdir -p "$run_dir"
+
+  source "$SCRIPT_DIR/lib/state.sh"
+  source "$SCRIPT_DIR/lib/context.sh"
+
+  # Initialize parallel block with two providers
+  local block_dir=$(init_parallel_block "$run_dir" 1 "dual-refine" "claude codex")
+
+  # Create stage outputs for both providers
+  mkdir -p "$block_dir/providers/claude/stage-00-iterate/iterations/001"
+  echo "Claude output" > "$block_dir/providers/claude/stage-00-iterate/iterations/001/output.md"
+
+  mkdir -p "$block_dir/providers/codex/stage-00-iterate/iterations/001"
+  echo "Codex output" > "$block_dir/providers/codex/stage-00-iterate/iterations/001/output.md"
+
+  # Create provider state files
+  cat > "$block_dir/providers/claude/state.json" << 'EOF'
+{"provider": "claude", "status": "complete", "stages": [{"name": "iterate", "iterations": 1, "termination_reason": "fixed"}]}
+EOF
+
+  cat > "$block_dir/providers/codex/state.json" << 'EOF'
+{"provider": "codex", "status": "complete", "stages": [{"name": "iterate", "iterations": 1, "termination_reason": "fixed"}]}
+EOF
+
+  # Write manifest
+  write_parallel_manifest "$block_dir" "dual-refine" 1 "iterate" "claude codex"
+
+  # Create downstream stage requesting only claude
+  mkdir -p "$run_dir/stage-02-synthesize/iterations/001"
+
+  local stage_config=$(jq -n \
+    --arg id "synthesize" \
+    --arg name "synthesize" \
+    --argjson index 2 \
+    --arg block_dir "$block_dir" \
+    '{
+      id: $id,
+      name: $name,
+      index: $index,
+      inputs: {
+        from_parallel: {
+          stage: "iterate",
+          block: "dual-refine",
+          providers: ["claude"],
+          select: "latest"
+        }
+      },
+      parallel_blocks: {
+        "dual-refine": {
+          manifest_path: ($block_dir + "/manifest.json")
+        }
+      }
+    }')
+
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$run_dir")
+
+  # Check that only claude is included, not codex
+  assert_json_field_exists "$context_file" ".inputs.from_parallel.providers.claude" \
+    "Should include claude"
+
+  local codex_entry=$(jq -r '.inputs.from_parallel.providers.codex // "null"' "$context_file")
+  assert_eq "null" "$codex_entry" "Should NOT include codex when subset specified"
+
+  cleanup_test_dir "$test_dir"
+}
+
+#-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
 
@@ -600,5 +979,16 @@ run_test "Parallel manifest format" test_parallel_manifest_format
 run_test "Parallel block auto-naming" test_parallel_block_naming_auto
 run_test "Parallel block custom naming" test_parallel_block_naming_custom
 run_test "Parallel resume.json written" test_parallel_resume_json_written
+
+echo ""
+echo "=== Phase 3: Context Generation Tests ==="
+echo ""
+
+run_test "Context generates in parallel scope" test_context_parallel_scope_generates
+run_test "Context parallel same provider only" test_context_parallel_same_provider_only
+run_test "Context from_parallel latest" test_context_from_parallel_latest
+run_test "Context from_parallel history" test_context_from_parallel_history
+run_test "Block stage can read previous stage" test_block_stage_inputs_can_read_previous_stage
+run_test "from_parallel provider subset" test_from_parallel_provider_subset
 
 test_summary

@@ -149,6 +149,7 @@ generate_context() {
 
 # Build inputs JSON based on pipeline config and previous iterations
 # Usage: build_inputs_json "$run_dir" "$stage_config" "$iteration"
+# Supports parallel_scope for provider isolation within parallel blocks
 build_inputs_json() {
   local run_dir=$1
   local stage_config=$2
@@ -158,12 +159,28 @@ build_inputs_json() {
   local inputs_from=$(echo "$stage_config" | jq -r '.inputs.from // ""')
   local inputs_select=$(echo "$stage_config" | jq -r '.inputs.select // "latest"')
 
+  # Check for parallel scope (for provider isolation)
+  local scope_root=$(echo "$stage_config" | jq -r '.parallel_scope.scope_root // ""')
+  local pipeline_root=$(echo "$stage_config" | jq -r '.parallel_scope.pipeline_root // ""')
+
   local from_stage="{}"
   local from_iterations="[]"
+  local from_parallel="{}"
 
   # Collect from previous stage if specified
   if [ -n "$inputs_from" ] && [ "$inputs_from" != "null" ]; then
-    local source_dir=$(find "$run_dir" -maxdepth 1 -type d -name "stage-*-$inputs_from" 2>/dev/null | head -1)
+    local source_dir=""
+
+    # When in parallel scope, look in scope_root first, then fall back to pipeline_root
+    if [ -n "$scope_root" ]; then
+      source_dir=$(find "$scope_root" -maxdepth 1 -type d -name "stage-*-$inputs_from" 2>/dev/null | head -1)
+      # Fall back to pipeline_root if not found in scope_root
+      if [ -z "$source_dir" ] && [ -n "$pipeline_root" ]; then
+        source_dir=$(find "$pipeline_root" -maxdepth 1 -type d -name "stage-*-$inputs_from" 2>/dev/null | head -1)
+      fi
+    else
+      source_dir=$(find "$run_dir" -maxdepth 1 -type d -name "stage-*-$inputs_from" 2>/dev/null | head -1)
+    fi
 
     if [ -d "$source_dir" ]; then
       case "$inputs_select" in
@@ -195,6 +212,12 @@ build_inputs_json() {
     fi
   fi
 
+  # Handle from_parallel inputs
+  local from_parallel_config=$(echo "$stage_config" | jq -c '.inputs.from_parallel // null')
+  if [ "$from_parallel_config" != "null" ] && [ -n "$from_parallel_config" ]; then
+    from_parallel=$(build_from_parallel_inputs "$stage_config" "$run_dir")
+  fi
+
   # Collect from previous iterations of current stage
   local stage_idx=$(echo "$stage_config" | jq -r '.index // 0')
   local stage_id=$(echo "$stage_config" | jq -r '.id // .name // "default"')
@@ -224,9 +247,125 @@ build_inputs_json() {
   fi
 
   # Combine into inputs object
+  # Include from_parallel only if it has content
+  if [ "$from_parallel" != "{}" ] && [ -n "$from_parallel" ]; then
+    jq -n \
+      --argjson from_stage "$from_stage" \
+      --argjson from_iterations "$from_iterations" \
+      --argjson from_initial "$from_initial" \
+      --argjson from_parallel "$from_parallel" \
+      '{from_stage: $from_stage, from_previous_iterations: $from_iterations, from_initial: $from_initial, from_parallel: $from_parallel}'
+  else
+    jq -n \
+      --argjson from_stage "$from_stage" \
+      --argjson from_iterations "$from_iterations" \
+      --argjson from_initial "$from_initial" \
+      '{from_stage: $from_stage, from_previous_iterations: $from_iterations, from_initial: $from_initial}'
+  fi
+}
+
+# Build from_parallel inputs based on manifest from a parallel block
+# Usage: build_from_parallel_inputs "$stage_config" "$run_dir"
+# Returns: JSON object with providers and their outputs
+build_from_parallel_inputs() {
+  local stage_config=$1
+  local run_dir=$2
+
+  # Parse from_parallel configuration
+  # Can be shorthand string (stage name) or full object
+  local from_parallel_config=$(echo "$stage_config" | jq -c '.inputs.from_parallel')
+
+  local stage_name=""
+  local block_name=""
+  local select_mode="latest"
+  local providers_filter="all"
+
+  # Handle shorthand string vs full object
+  if echo "$from_parallel_config" | jq -e 'type == "string"' >/dev/null 2>&1; then
+    # Shorthand: just the stage name
+    stage_name=$(echo "$from_parallel_config" | jq -r '.')
+  else
+    # Full object
+    stage_name=$(echo "$from_parallel_config" | jq -r '.stage // ""')
+    block_name=$(echo "$from_parallel_config" | jq -r '.block // ""')
+    select_mode=$(echo "$from_parallel_config" | jq -r '.select // "latest"')
+    providers_filter=$(echo "$from_parallel_config" | jq -c '.providers // "all"')
+  fi
+
+  # Find manifest path from parallel_blocks config
+  local manifest_path=""
+  if [ -n "$block_name" ]; then
+    manifest_path=$(echo "$stage_config" | jq -r ".parallel_blocks[\"$block_name\"].manifest_path // \"\"")
+  else
+    # Try to find the most recent parallel block
+    manifest_path=$(echo "$stage_config" | jq -r '.parallel_blocks | to_entries | .[0].value.manifest_path // ""')
+  fi
+
+  if [ -z "$manifest_path" ] || [ ! -f "$manifest_path" ]; then
+    # Return empty if no manifest found
+    echo "{}"
+    return
+  fi
+
+  # Read manifest
+  local manifest=$(cat "$manifest_path" 2>/dev/null || echo "{}")
+
+  # Get block info
+  local block_name_from_manifest=$(echo "$manifest" | jq -r '.block.name // "unknown"')
+
+  # Build providers output
+  local providers_json="{}"
+  local all_providers=$(echo "$manifest" | jq -r '.providers | keys[]' 2>/dev/null)
+
+  for provider in $all_providers; do
+    # Check if provider is in the filter
+    local include_provider=true
+    if [ "$providers_filter" != "all" ] && echo "$providers_filter" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      if ! echo "$providers_filter" | jq -e "contains([\"$provider\"])" >/dev/null 2>&1; then
+        include_provider=false
+      fi
+    fi
+
+    if [ "$include_provider" = true ]; then
+      # Get stage data for this provider
+      local stage_data=$(echo "$manifest" | jq -c ".providers[\"$provider\"][\"$stage_name\"] // {}")
+
+      if [ "$stage_data" != "{}" ] && [ -n "$stage_data" ]; then
+        local output=$(echo "$stage_data" | jq -r '.latest_output // ""')
+        local status=$(echo "$stage_data" | jq -r '.status // ""')
+        local iterations=$(echo "$stage_data" | jq -r '.iterations // 0')
+        local term_reason=$(echo "$stage_data" | jq -r '.termination_reason // ""')
+        local history=$(echo "$stage_data" | jq -c '.history // []')
+
+        local provider_entry
+        if [ "$select_mode" = "history" ]; then
+          provider_entry=$(jq -n \
+            --arg output "$output" \
+            --arg status "$status" \
+            --argjson iterations "$iterations" \
+            --arg term_reason "$term_reason" \
+            --argjson history "$history" \
+            '{output: $output, status: $status, iterations: $iterations, termination_reason: $term_reason, history: $history}')
+        else
+          provider_entry=$(jq -n \
+            --arg output "$output" \
+            --arg status "$status" \
+            --argjson iterations "$iterations" \
+            --arg term_reason "$term_reason" \
+            '{output: $output, status: $status, iterations: $iterations, termination_reason: $term_reason}')
+        fi
+
+        providers_json=$(echo "$providers_json" | jq --arg p "$provider" --argjson data "$provider_entry" '. + {($p): $data}')
+      fi
+    fi
+  done
+
+  # Build final from_parallel object
   jq -n \
-    --argjson from_stage "$from_stage" \
-    --argjson from_iterations "$from_iterations" \
-    --argjson from_initial "$from_initial" \
-    '{from_stage: $from_stage, from_previous_iterations: $from_iterations, from_initial: $from_initial}'
+    --arg stage "$stage_name" \
+    --arg block "$block_name_from_manifest" \
+    --arg select "$select_mode" \
+    --arg manifest "$manifest_path" \
+    --argjson providers "$providers_json" \
+    '{stage: $stage, block: $block, select: $select, manifest: $manifest, providers: $providers}'
 }
