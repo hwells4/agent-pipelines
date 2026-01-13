@@ -29,6 +29,8 @@ for i in $(seq 1 $#); do
   fi
   case "$arg" in
     --tmux) TMUX_FLAG="true" ;;
+    --provider=*) export PIPELINE_CLI_PROVIDER="${arg#*=}" ;;
+    --model=*) export PIPELINE_CLI_MODEL="${arg#*=}" ;;
     --input)
       next_i=$((i + 1))
       INPUT_FILES+=("${!next_i}")
@@ -93,6 +95,8 @@ show_help() {
   echo "  --force                         Override existing session lock"
   echo "  --resume                        Resume a crashed/failed session"
   echo "  --input <file>                  Initial input file for pipeline (can use multiple times)"
+  echo "  --provider=<name>               Override provider (claude, codex)"
+  echo "  --model=<name>                  Override model (opus, o3, etc.)"
   echo "  --verbose                       Show detailed test output"
   echo ""
   echo "Available stages:"

@@ -180,6 +180,19 @@ If you encounter an error, write to `${STATUS}`:
 ```
 ```
 
+## Environment Variables (Override)
+
+These env vars override stage/pipeline configuration without editing files:
+
+| Variable | Purpose |
+|----------|---------|
+| `CLAUDE_PIPELINE_PROVIDER` | Override provider (claude, codex) |
+| `CLAUDE_PIPELINE_MODEL` | Override model (opus, o3, etc.) |
+
+CLI flags `--provider=X` and `--model=X` take precedence over env vars.
+
+**Precedence:** CLI flags → Env vars → Stage config → Built-in defaults
+
 ## Variable Resolution
 
 The engine resolves variables before passing to Claude:

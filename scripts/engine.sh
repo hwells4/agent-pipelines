@@ -105,14 +105,14 @@ load_stage() {
     STAGE_CONSENSUS="2"
   fi
 
-  STAGE_MODEL=$(json_get "$STAGE_CONFIG" ".model" "opus")
+  STAGE_MODEL=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$STAGE_CONFIG" ".model" "opus")}}
   STAGE_DELAY=$(json_get "$STAGE_CONFIG" ".delay" "3")
   STAGE_CHECK_BEFORE=$(json_get "$STAGE_CONFIG" ".check_before" "false")
   STAGE_OUTPUT_PARSE=$(json_get "$STAGE_CONFIG" ".output_parse" "")
   STAGE_ITEMS=$(json_get "$STAGE_CONFIG" ".items" "")
   STAGE_PROMPT_VALUE=$(json_get "$STAGE_CONFIG" ".prompt" "")
   STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
-  STAGE_PROVIDER=$(json_get "$STAGE_CONFIG" ".provider" "claude")
+  STAGE_PROVIDER=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$STAGE_CONFIG" ".provider" "claude")}}
   STAGE_CONTEXT=$(json_get "$STAGE_CONFIG" ".context" "")
 
   # Export for completion strategies
@@ -474,9 +474,9 @@ run_pipeline() {
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
 
-  # Get defaults
-  local default_model=$(json_get "$pipeline_json" ".defaults.model" "opus")
-  local default_provider=$(json_get "$pipeline_json" ".defaults.provider" "claude")
+  # Get defaults (CLI > env > pipeline config > built-in)
+  local default_model=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$pipeline_json" ".defaults.model" "opus")}}
+  local default_provider=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$pipeline_json" ".defaults.provider" "claude")}}
 
   # Execute each stage
   local stage_count=$(json_array_len "$pipeline_json" ".stages")

@@ -105,14 +105,14 @@ CLAUDE_PIPELINE_MODEL=sonnet ./scripts/run.sh ralph auth 25 --provider=claude
 
 ## Acceptance Criteria
 
-- [ ] `--provider=X` flag overrides all other config
-- [ ] `--model=X` flag overrides all other config
-- [ ] `CLAUDE_PIPELINE_PROVIDER` env var overrides stage config
-- [ ] `CLAUDE_PIPELINE_MODEL` env var overrides stage config
-- [ ] Existing stage.yaml `provider:` field still works
-- [ ] Pipeline `defaults.provider` still works
-- [ ] `--help` shows new flags
-- [ ] All existing tests pass
+- [x] `--provider=X` flag overrides all other config
+- [x] `--model=X` flag overrides all other config
+- [x] `CLAUDE_PIPELINE_PROVIDER` env var overrides stage config
+- [x] `CLAUDE_PIPELINE_MODEL` env var overrides stage config
+- [x] Existing stage.yaml `provider:` field still works
+- [x] Pipeline `defaults.provider` still works
+- [x] `--help` shows new flags
+- [x] All existing tests pass (6 pre-existing failures unrelated to this change)
 
 ## Test Plan
 

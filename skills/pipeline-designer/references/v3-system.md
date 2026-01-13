@@ -111,9 +111,16 @@ termination:
 
 check_before: true       # Check termination before first iteration
 delay: 3                 # Seconds between iterations
-model: opus              # opus | sonnet | haiku
+provider: claude         # claude | codex (default: claude)
+model: opus              # claude: opus | sonnet | haiku; codex: gpt-5.2-codex | o3
 context: |               # Optional: injected into prompt as ${CONTEXT}
   Custom instructions for this stage instance
+```
+
+**Provider override:** Use CLI flags or env vars to override without editing stage.yaml:
+```bash
+./scripts/run.sh {type} {session} {max} --provider=codex --model=o3
+CLAUDE_PIPELINE_PROVIDER=codex ./scripts/run.sh {type} {session} {max}
 ```
 
 ## Pipeline Configuration

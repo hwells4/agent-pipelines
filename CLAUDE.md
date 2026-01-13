@@ -372,7 +372,25 @@ rm .claude/locks/{session}.lock
 
 ## Environment Variables
 
-Pipelines export:
+**Exported by pipelines:**
 - `CLAUDE_PIPELINE_AGENT=1` - Always true inside a pipeline
 - `CLAUDE_PIPELINE_SESSION` - Current session name
 - `CLAUDE_PIPELINE_TYPE` - Current stage type
+
+**Override provider/model:**
+- `CLAUDE_PIPELINE_PROVIDER` - Override provider (claude, codex)
+- `CLAUDE_PIPELINE_MODEL` - Override model (opus, o3, etc.)
+
+CLI flags take precedence over env vars:
+```bash
+# CLI flags (highest priority)
+./scripts/run.sh ralph auth 25 --provider=codex --model=o3
+
+# Environment variables
+CLAUDE_PIPELINE_PROVIDER=codex ./scripts/run.sh ralph auth 25
+
+# Combined (CLI wins for provider, env wins for model)
+CLAUDE_PIPELINE_MODEL=sonnet ./scripts/run.sh ralph auth 25 --provider=claude
+```
+
+**Precedence:** CLI flags → Env vars → Stage config → Built-in defaults
