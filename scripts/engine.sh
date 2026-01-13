@@ -358,6 +358,14 @@ run_pipeline() {
     fi
   fi
 
+  # Validate pipeline before execution (Bug fix: loop-agents-otc)
+  if ! validate_pipeline_file "$pipeline_file" "--quiet"; then
+    local pipeline_name_for_error
+    pipeline_name_for_error=$(basename "$pipeline_file" .yaml)
+    echo "Error: Pipeline validation failed. Run './scripts/run.sh lint pipeline $pipeline_name_for_error' for details." >&2
+    return 1
+  fi
+
   # Parse pipeline
   local pipeline_json=$(yaml_to_json "$pipeline_file")
   local pipeline_name=$(json_get "$pipeline_json" ".name" "pipeline")

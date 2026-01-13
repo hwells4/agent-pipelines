@@ -181,7 +181,28 @@ validate_loop() {
   fi
 }
 
-# Validate a pipeline configuration
+# Validate a pipeline configuration by file path
+# Usage: validate_pipeline_file "/path/to/pipeline.yaml" [--quiet]
+# Returns: 0 if valid, 1 if errors found
+validate_pipeline_file() {
+  local file=$1
+  local quiet=${2:-""}
+  local name=$(basename "$file" .yaml)
+  local errors=()
+  local warnings=()
+
+  # P001: Pipeline file exists
+  if [ ! -f "$file" ]; then
+    errors+=("Pipeline file not found: $file")
+    [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
+    return 1
+  fi
+
+  # Delegate to common validation logic
+  _validate_pipeline_impl "$file" "$name" "$quiet"
+}
+
+# Validate a pipeline configuration by name (looks in pipelines directory)
 # Usage: validate_pipeline "pipeline-name" [--quiet]
 # Returns: 0 if valid, 1 if errors found
 validate_pipeline() {
@@ -189,19 +210,29 @@ validate_pipeline() {
   local quiet=${2:-""}
   local pipelines_dir="${VALIDATE_SCRIPT_DIR}/../pipelines"
   local file="$pipelines_dir/${name}.yaml"
-  local errors=()
-  local warnings=()
 
   # P001: Pipeline file exists
   if [ ! -f "$file" ]; then
     # Try without .yaml extension
     if [ ! -f "$pipelines_dir/$name" ]; then
-      errors+=("Pipeline file not found: $file")
-      [ -z "$quiet" ] && print_result "FAIL" "$name" "${errors[@]}"
+      [ -z "$quiet" ] && print_result "FAIL" "$name" "Pipeline file not found: $file"
       return 1
     fi
     file="$pipelines_dir/$name"
   fi
+
+  # Delegate to common validation logic
+  _validate_pipeline_impl "$file" "$name" "$quiet"
+}
+
+# Internal: Common pipeline validation logic
+# Usage: _validate_pipeline_impl "/path/to/file.yaml" "display-name" [--quiet]
+_validate_pipeline_impl() {
+  local file=$1
+  local name=$2
+  local quiet=${3:-""}
+  local errors=()
+  local warnings=()
 
   # P002: YAML parses correctly
   local config
@@ -246,16 +277,20 @@ validate_pipeline() {
     fi
     stage_names+=("$stage_name")
 
-    # P007: Each stage has stage or prompt
+    # P007: Each stage has stage, loop (legacy), or prompt
     local stage_ref=$(echo "$stage" | jq -r ".stage // empty")
+    # Support legacy .loop keyword (Bug fix: parallel to loop-agents-sam)
+    [ -z "$stage_ref" ] && stage_ref=$(echo "$stage" | jq -r ".loop // empty")
     local stage_prompt=$(echo "$stage" | jq -r ".prompt // empty")
     if [ -z "$stage_ref" ] && [ -z "$stage_prompt" ]; then
       errors+=("Stage '$stage_name': needs 'stage' or 'prompt' field")
     fi
 
     # P008: Referenced stages exist
+    # Use STAGES_DIR if set (for tests), otherwise use default path
     if [ -n "$stage_ref" ]; then
-      local stage_dir="${VALIDATE_SCRIPT_DIR}/../stages/$stage_ref"
+      local stages_base="${STAGES_DIR:-${VALIDATE_SCRIPT_DIR}/../stages}"
+      local stage_dir="$stages_base/$stage_ref"
       if [ ! -d "$stage_dir" ]; then
         errors+=("Stage '$stage_name': references unknown stage '$stage_ref'")
       fi
@@ -305,7 +340,7 @@ validate_pipeline() {
 # Print validation result
 # Usage: print_result "PASS|FAIL" "name" "errors..." "warnings..."
 print_result() {
-  local status=$1
+  local result_status=$1
   local name=$2
   shift 2
 
@@ -326,7 +361,7 @@ print_result() {
     fi
   done
 
-  if [ "$status" = "PASS" ]; then
+  if [ "$result_status" = "PASS" ]; then
     echo "  $name"
     echo "    [PASS] All checks passed"
   else
@@ -563,13 +598,15 @@ dry_run_pipeline() {
   for ((i=0; i<stages_len; i++)); do
     local stage=$(echo "$config" | jq -r ".stages[$i]")
     local stage_name=$(echo "$stage" | jq -r ".name")
-    local stage_loop=$(echo "$stage" | jq -r ".loop // empty")
+    # Bug fix: check .stage first, fall back to .loop (loop-agents-sam)
+    local stage_loop=$(echo "$stage" | jq -r ".stage // empty")
+    [ -z "$stage_loop" ] && stage_loop=$(echo "$stage" | jq -r ".loop // empty")
     local stage_runs=$(echo "$stage" | jq -r ".runs // 1")
 
     echo "### Stage $((i+1)): $stage_name"
     echo ""
     if [ -n "$stage_loop" ]; then
-      echo "- **Loop:** $stage_loop"
+      echo "- **Stage:** $stage_loop"
       echo "- **Max iterations:** $stage_runs"
 
       # Get loop's termination strategy (v3)

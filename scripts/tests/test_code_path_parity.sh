@@ -71,7 +71,7 @@ _create_test_pipeline() {
 name: $pipeline_name
 stages:
   - name: stage1
-    loop: test-stage
+    stage: test-stage
     runs: $runs
 EOF
 

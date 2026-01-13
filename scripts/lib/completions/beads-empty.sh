@@ -9,11 +9,13 @@ check_completion() {
   local state_file=$2
   local status_file=$3  # v3: Now receives status file path
 
-  # Check if agent reported error - don't complete on error
+  # Check if agent reported error - stop the loop on error
+  # (Bug fix: loop-agents-r5x - consistent with fixed-n.sh behavior)
+  # Only check for error if the status file actually exists
   local decision=$(get_status_decision "$status_file" 2>/dev/null)
-  if [ "$decision" = "error" ]; then
-    echo "Agent reported error - not completing"
-    return 1
+  if [ -f "$status_file" ] && [ "$decision" = "error" ]; then
+    echo "Agent reported error - stopping loop"
+    return 0
   fi
 
   local remaining

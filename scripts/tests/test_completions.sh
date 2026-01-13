@@ -205,15 +205,16 @@ test_beads_empty_checks_error_status() {
   # Mock bd to return empty (0 remaining beads)
   _setup_mock_bd 0
 
-  # Even with empty queue, error status should prevent completion
+  # Error status should stop the loop (return 0) for consistent error handling
+  # See Bug fix: loop-agents-r5x - all completion strategies stop on error
   check_completion "test-session" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 
   _teardown_mock_bd
   rm -rf "$test_dir"
 
-  # With error status, should not complete (return 1)
-  assert_eq "1" "$result" "Error status prevents completion even if queue empty"
+  # With error status, should stop (return 0) - consistent with fixed-n.sh
+  assert_eq "0" "$result" "Error status stops loop (consistent error handling)"
 }
 
 test_beads_empty_completes_when_queue_empty() {

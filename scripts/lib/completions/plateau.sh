@@ -26,6 +26,16 @@ check_completion() {
   local decision=$(get_status_decision "$status_file")
   local reason=$(get_status_reason "$status_file")
 
+  # Check if agent reported error - stop the loop on error
+  # (Bug fix: loop-agents-r5x - consistent with fixed-n.sh behavior)
+  # Only check for error if the status file actually exists
+  # (get_status_decision returns "error" for missing files as fallback)
+  if [ -f "$status_file" ] && [ "$decision" = "error" ]; then
+    echo "Agent reported error - stopping loop"
+    echo "  Reason: $reason"
+    return 0
+  fi
+
   if [ "$decision" = "stop" ]; then
     # Get current stage name for filtering (multi-stage pipeline support)
     local current_stage_idx=$(jq -r '.current_stage // 0' "$state_file" 2>/dev/null)
