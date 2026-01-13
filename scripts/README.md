@@ -19,9 +19,9 @@ scripts/
 │   ├── lock.sh            # Session locking
 │   └── completions/       # Stopping conditions
 ├── loops/                 # Loop definitions
-│   ├── work/
+│   ├── ralph/
 │   ├── improve-plan/
-│   ├── refine-beads/
+│   ├── refine-tasks/
 │   └── idea-wizard/
 └── pipelines/             # Multi-stage pipelines
     └── *.yaml
@@ -37,17 +37,17 @@ scripts/
 
 ```bash
 # Run a loop
-./scripts/run.sh loop work auth 25
+./scripts/run.sh loop ralph auth 25
 ./scripts/run.sh loop improve-plan my-session 5
 
 # Run a pipeline
 ./scripts/run.sh pipeline full-refine.yaml my-session
 
 # Force start (override existing lock)
-./scripts/run.sh loop work auth 25 --force
+./scripts/run.sh loop ralph auth 25 --force
 
 # Resume a crashed/failed session
-./scripts/run.sh loop work auth 25 --resume
+./scripts/run.sh loop ralph auth 25 --resume
 
 # Check session status
 ./scripts/run.sh status auth
@@ -87,7 +87,7 @@ Use `--force` to override an existing lock. This is useful when:
 - You want to replace a running session
 
 ```bash
-./scripts/run.sh loop work auth 25 --force
+./scripts/run.sh loop ralph auth 25 --force
 ```
 
 **Error messages:**
@@ -124,7 +124,7 @@ Run with --resume to continue from iteration 5
 
 ```bash
 # Resume from last successful iteration
-./scripts/run.sh loop work auth 25 --resume
+./scripts/run.sh loop ralph auth 25 --resume
 ```
 
 Output:

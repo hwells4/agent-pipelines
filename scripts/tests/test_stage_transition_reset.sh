@@ -175,7 +175,7 @@ EOF
 
   # Step 2: Stage 3 starts (this is where the bug would occur)
   # Simulate what update_stage does
-  jq '.stages += [{"index": 3, "name": "refine-beads", "status": "running"}] | .current_stage = 3' \
+  jq '.stages += [{"index": 3, "name": "refine-tasks", "status": "running"}] | .current_stage = 3' \
     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
 
   # At this point, without fix:

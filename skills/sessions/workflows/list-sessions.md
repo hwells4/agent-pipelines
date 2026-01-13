@@ -74,7 +74,7 @@ SESSION         TYPE            ITER    STATUS
 auth            work            5/25    RUNNING
 billing         improve-plan    3/5     RUNNING
 old-feature     work            12/15   CRASHED (stale lock)
-test            refine-beads    5/5     COMPLETE
+test            refine-tasks    5/5     COMPLETE
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Active: 2  |  Crashed: 1  |  Completed: 1
@@ -101,11 +101,11 @@ If no sessions found:
 No loop agent sessions found.
 
 To start a session:
-  ./scripts/run.sh work my-session 25
+  ./scripts/run.sh ralph my-session 25
   ./scripts/run.sh pipeline full-refine.yaml my-project
 
 Available stage types:
-  work, improve-plan, refine-beads, elegance, idea-wizard
+  work, improve-plan, refine-tasks, elegance, idea-wizard
 ```
 
 ## Step 5: Provide Next Actions

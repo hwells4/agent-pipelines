@@ -19,7 +19,7 @@ If session name not provided, ask:
     "header": "Type",
     "options": [
       {"label": "Work", "description": "Implement beads until queue empty (Recommended)"},
-      {"label": "Refinement Pipeline", "description": "Multi-stage refinement (improve-plan + refine-beads)"},
+      {"label": "Refinement Pipeline", "description": "Multi-stage refinement (improve-plan + refine-tasks)"},
       {"label": "Custom Stage", "description": "Run a specific stage type"}
     ],
     "multiSelect": false

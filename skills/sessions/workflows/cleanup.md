@@ -182,8 +182,8 @@ Fixed:
   ✓ 1 zombie state updated
 
 Sessions available to resume:
-  • auth:        ./scripts/run.sh work auth 25 --resume
-  • old-feature: ./scripts/run.sh work old-feature 15 --resume
+  • auth:        ./scripts/run.sh ralph auth 25 --resume
+  • old-feature: ./scripts/run.sh ralph old-feature 15 --resume
 
 Next actions:
   • List sessions: /agent-pipelines:sessions list

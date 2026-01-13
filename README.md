@@ -1,6 +1,6 @@
 # Agent Pipelines
 
-A Claude Code plugin for autonomous, multi-stage workflows that run overnight.
+A composable engine for [Ralph loops](https://ghuntley.com/ralph/). 
 
 ## Install
 
@@ -13,8 +13,13 @@ claude plugin install agent-pipelines@dodo-digital
 
 ## What It Does
 
-Agent Pipelines chains stages together to build complex autonomous workflows. Each stage has its own prompt and stopping condition. Stages iterate with fresh Claude instances, avoiding the context degradation that kills long-running agents.
+Agent Pipelines extend basic Ralph loops:
 
+  - **Loop on anything.** Plan files, task queues, codebases, URL lists, CSVs. Whatever.
+  - **Chain stages together.** Planning → task refinement → implementation.
+  - **Stop when it makes sense.** Fixed count, two-agent consensus, or queue empty.
+
+## Example
 ```
 Plan (5 iterations)  →  Refine Tasks (5 iterations)  →  Implement (until done)
       ↓                        ↓                              ↓
@@ -47,20 +52,23 @@ Each session runs in tmux. Start one, close your laptop, check back tomorrow.
 
 | Pipeline | What it does |
 |----------|--------------|
-| `quick-refine` | 3 plan iterations → 3 task iterations |
-| `full-refine` | 5 plan iterations → 5 task iterations |
-| `deep-refine` | 8 plan iterations → 8 task iterations |
+| `refine` | 5 plan iterations → 5 task iterations |
+| `ideate` | 3 idea generation iterations |
+| `bug-hunt` | discover (8) → triage (2) → refine (3) → fix (25) |
 
 ## Built-in Stages
 
 | Stage | Stops when | Purpose |
 |-------|------------|---------|
-| `work` | N iterations | Implement tasks from beads |
+| `ralph` | N iterations | The original Ralph loop - implement tasks |
 | `improve-plan` | 2 agents agree | Refine PRD until quality plateaus |
-| `refine-beads` | 2 agents agree | Split/merge tasks until ready |
+| `refine-tasks` | 2 agents agree | Split/merge tasks until ready |
 | `elegance` | 2 agents agree | Hunt unnecessary complexity |
+| `bug-discovery` | N iterations | Explore codebase, find bugs |
+| `bug-triage` | 2 agents agree | Triage bugs, create elegant fixes |
 | `idea-wizard` | N iterations | Brainstorm and rank ideas |
 | `research-plan` | 2 agents agree | Web research to improve plans |
+| `test-scanner` | 2 agents agree | Find test coverage gaps |
 
 ## Philosophy
 

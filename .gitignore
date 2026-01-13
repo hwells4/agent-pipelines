@@ -4,3 +4,23 @@
 # Session locks (runtime state, never commit)
 # Note: .claude/ above already covers this, but explicit for clarity
 # .claude/locks/
+
+# Local-only stages (not part of open source release)
+scripts/stages/tdd-work/
+scripts/stages/idea-wizard-loom/
+scripts/stages/readme-sync/
+scripts/stages/robot-mode/
+scripts/stages/test-analyzer/
+scripts/stages/test-planner/
+scripts/stages/test-review/
+scripts/stages/code-review/
+scripts/stages/tdd-create-beads/
+scripts/stages/tdd-plan-refine/
+
+# Local-only pipelines
+scripts/pipelines/quick-refine.yaml
+scripts/pipelines/deep-refine.yaml
+scripts/pipelines/test-gap-discovery.yaml
+scripts/pipelines/design-refine.yaml
+scripts/pipelines/tdd-implement.yaml
+scripts/pipelines/templates/

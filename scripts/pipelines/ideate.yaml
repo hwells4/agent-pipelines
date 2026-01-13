@@ -1,0 +1,10 @@
+# Ideate Pipeline
+# Generate creative improvement ideas
+
+name: ideate
+description: Brainstorm creative improvements and new ideas
+
+stages:
+  - name: ideate
+    stage: idea-wizard
+    runs: 3

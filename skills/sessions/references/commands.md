@@ -7,15 +7,15 @@ All bash commands for session management, organized by operation.
 
 **Single-stage (work loop):**
 ```bash
-./scripts/run.sh work {session} {max_iterations}
-./scripts/run.sh work auth 25
+./scripts/run.sh ralph {session} {max_iterations}
+./scripts/run.sh ralph auth 25
 ```
 
 **Single-stage (other types):**
 ```bash
 ./scripts/run.sh {type} {session} {max}
 ./scripts/run.sh improve-plan my-plan 5
-./scripts/run.sh refine-beads my-beads 5
+./scripts/run.sh refine-tasks my-beads 5
 ./scripts/run.sh elegance my-code 3
 ./scripts/run.sh idea-wizard my-ideas 10
 ```
@@ -30,8 +30,8 @@ All bash commands for session management, organized by operation.
 
 **With flags:**
 ```bash
-./scripts/run.sh work auth 25 --force    # Override existing lock
-./scripts/run.sh work auth 25 --resume   # Continue from crash
+./scripts/run.sh ralph auth 25 --force    # Override existing lock
+./scripts/run.sh ralph auth 25 --resume   # Continue from crash
 ```
 </start_commands>
 
@@ -55,7 +55,7 @@ cat scripts/pipelines/full-refine.yaml
 
 **View stage configuration:**
 ```bash
-cat scripts/stages/work/stage.yaml
+cat scripts/stages/ralph/stage.yaml
 ```
 </discovery_commands>
 

@@ -68,8 +68,8 @@ stages:
     stage: improve-plan
     runs: 5
 
-  - name: refine-beads
-    stage: refine-beads
+  - name: refine-tasks
+    stage: refine-tasks
     runs: 5
     inputs:
       from: improve-plan    # Name of source stage
@@ -115,8 +115,8 @@ stages:
     stage: improve-plan    # Uses stages/improve-plan/prompt.md
     runs: 5               # Inherits termination from stage.yaml
 
-  - name: refine-beads
-    stage: refine-beads
+  - name: refine-tasks
+    stage: refine-tasks
     runs: 5
 ```
 

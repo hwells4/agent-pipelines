@@ -9,10 +9,10 @@ STAGES_DIR="$SCRIPT_DIR/stages"
 # Fixture Directory Tests
 #-------------------------------------------------------------------------------
 
-test_work_fixtures_exist() {
-  assert_dir_exists "$STAGES_DIR/work/fixtures" "work fixtures directory exists"
-  assert_file_exists "$STAGES_DIR/work/fixtures/default.txt" "work default fixture exists"
-  assert_file_exists "$STAGES_DIR/work/fixtures/status.json" "work status template exists"
+test_ralph_fixtures_exist() {
+  assert_dir_exists "$STAGES_DIR/ralph/fixtures" "ralphfixtures directory exists"
+  assert_file_exists "$STAGES_DIR/ralph/fixtures/default.txt" "ralphdefault fixture exists"
+  assert_file_exists "$STAGES_DIR/ralph/fixtures/status.json" "ralphstatus template exists"
 }
 
 test_improve_plan_fixtures_exist() {
@@ -36,9 +36,9 @@ test_idea_wizard_fixtures_exist() {
 }
 
 test_refine_beads_fixtures_exist() {
-  assert_dir_exists "$STAGES_DIR/refine-beads/fixtures" "refine-beads fixtures directory exists"
-  assert_file_exists "$STAGES_DIR/refine-beads/fixtures/default.txt" "refine-beads default fixture"
-  assert_file_exists "$STAGES_DIR/refine-beads/fixtures/status.json" "refine-beads status template"
+  assert_dir_exists "$STAGES_DIR/refine-tasks/fixtures" "refine-tasks fixtures directory exists"
+  assert_file_exists "$STAGES_DIR/refine-tasks/fixtures/default.txt" "refine-tasks default fixture"
+  assert_file_exists "$STAGES_DIR/refine-tasks/fixtures/status.json" "refine-tasks status template"
 }
 
 #-------------------------------------------------------------------------------
@@ -109,7 +109,7 @@ test_plateau_fixtures_have_required_fields() {
 # Run Tests
 #-------------------------------------------------------------------------------
 
-run_test "Work fixtures exist" test_work_fixtures_exist
+run_test "Ralph fixtures exist" test_ralph_fixtures_exist
 run_test "Improve-plan fixtures exist" test_improve_plan_fixtures_exist
 run_test "Elegance fixtures exist" test_elegance_fixtures_exist
 run_test "Idea-wizard fixtures exist" test_idea_wizard_fixtures_exist

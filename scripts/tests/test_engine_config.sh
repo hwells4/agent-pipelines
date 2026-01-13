@@ -51,10 +51,10 @@ _parse_loop_config() {
 # Work Stage Config Tests
 #-------------------------------------------------------------------------------
 
-test_work_stage_loads_fixed_termination() {
-  _parse_loop_config "$SCRIPT_DIR/stages/work"
+test_ralph_stage_loads_fixed_termination() {
+  _parse_loop_config "$SCRIPT_DIR/stages/ralph"
 
-  assert_eq "fixed" "$STAGE_TERM_TYPE" "work stage has termination.type=fixed"
+  assert_eq "fixed" "$STAGE_TERM_TYPE" "ralph stage has termination.type=fixed"
   assert_eq "fixed-n" "$STAGE_COMPLETION" "fixed maps to fixed-n completion"
 }
 
@@ -128,9 +128,9 @@ test_idea_wizard_loads_fixed_termination() {
 #-------------------------------------------------------------------------------
 
 test_refine_beads_loads_judgment_termination() {
-  _parse_loop_config "$SCRIPT_DIR/stages/refine-beads"
+  _parse_loop_config "$SCRIPT_DIR/stages/refine-tasks"
 
-  assert_eq "judgment" "$STAGE_TERM_TYPE" "refine-beads has termination.type=judgment"
+  assert_eq "judgment" "$STAGE_TERM_TYPE" "refine-tasks has termination.type=judgment"
   assert_eq "plateau" "$STAGE_COMPLETION" "judgment maps to plateau completion"
 }
 
@@ -168,14 +168,14 @@ echo "  Engine Config Loading Tests (v3 YAML → Env)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
-run_test "work: loads fixed termination" test_work_stage_loads_fixed_termination
+run_test "ralph: loads fixed termination" test_ralph_stage_loads_fixed_termination
 run_test "improve-plan: loads judgment termination" test_improve_plan_loads_judgment_termination
 run_test "improve-plan: loads consensus from config" test_improve_plan_loads_consensus
 run_test "improve-plan: loads min_iterations from config" test_improve_plan_loads_min_iterations
 run_test "elegance: loads judgment termination" test_elegance_loads_judgment_termination
 run_test "elegance: loads consensus from config" test_elegance_loads_consensus
 run_test "idea-wizard: loads fixed termination" test_idea_wizard_loads_fixed_termination
-run_test "refine-beads: loads judgment termination" test_refine_beads_loads_judgment_termination
+run_test "refine-tasks: loads judgment termination" test_refine_beads_loads_judgment_termination
 run_test "config exports MIN_ITERATIONS" test_config_exports_min_iterations
 run_test "config exports CONSENSUS" test_config_exports_consensus
 

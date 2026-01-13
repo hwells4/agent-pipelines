@@ -51,7 +51,7 @@ stages:
     runs: 5
 
   - name: bead-stage
-    loop: refine-beads
+    loop: refine-tasks
     runs: 5
     inputs:
       from: plan-stage
@@ -105,7 +105,7 @@ Point users to existing configurations:
 
 ```bash
 # Stage examples
-cat scripts/stages/work/stage.yaml
+cat scripts/stages/ralph/stage.yaml
 cat scripts/stages/elegance/prompt.md
 
 # Pipeline examples

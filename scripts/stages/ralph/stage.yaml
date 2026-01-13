@@ -1,0 +1,10 @@
+# Ralph Stage - The original loop
+# Fresh agent each iteration, progress file carries context
+
+name: ralph
+description: Implement tasks from queue until empty
+
+termination:
+  type: fixed
+
+delay: 3

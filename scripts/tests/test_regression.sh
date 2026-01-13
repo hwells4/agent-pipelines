@@ -12,10 +12,10 @@ STAGES_DIR="$SCRIPT_DIR/stages"
 # Stage Definition Tests (v3 schema)
 #-------------------------------------------------------------------------------
 
-test_work_stage_v3_schema() {
-  local config=$(yaml_to_json "$STAGES_DIR/work/stage.yaml")
+test_ralph_stage_v3_schema() {
+  local config=$(yaml_to_json "$STAGES_DIR/ralph/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
-  assert_eq "fixed" "$term_type" "work stage uses termination.type=fixed"
+  assert_eq "fixed" "$term_type" "ralph stage uses termination.type=fixed"
 }
 
 test_improve_plan_stage_v3_schema() {
@@ -41,11 +41,11 @@ test_idea_wizard_stage_v3_schema() {
 }
 
 test_refine_beads_stage_v3_schema() {
-  local config=$(yaml_to_json "$STAGES_DIR/refine-beads/stage.yaml")
+  local config=$(yaml_to_json "$STAGES_DIR/refine-tasks/stage.yaml")
   local term_type=$(echo "$config" | jq -r '.termination.type // empty')
   local consensus=$(echo "$config" | jq -r '.termination.consensus // empty')
-  assert_eq "judgment" "$term_type" "refine-beads uses termination.type=judgment"
-  assert_eq "2" "$consensus" "refine-beads requires consensus=2"
+  assert_eq "judgment" "$term_type" "refine-tasks uses termination.type=judgment"
+  assert_eq "2" "$consensus" "refine-tasks requires consensus=2"
 }
 
 #-------------------------------------------------------------------------------
@@ -158,11 +158,11 @@ test_all_items_sh_removed() {
 # Run Tests
 #-------------------------------------------------------------------------------
 
-run_test "work stage v3 schema" test_work_stage_v3_schema
+run_test "ralph stage v3 schema" test_ralph_stage_v3_schema
 run_test "improve-plan stage v3 schema" test_improve_plan_stage_v3_schema
 run_test "elegance stage v3 schema" test_elegance_stage_v3_schema
 run_test "idea-wizard stage v3 schema" test_idea_wizard_stage_v3_schema
-run_test "refine-beads stage v3 schema" test_refine_beads_stage_v3_schema
+run_test "refine-tasks stage v3 schema" test_refine_beads_stage_v3_schema
 run_test "Prompts use CTX variable" test_prompts_use_ctx_variable
 run_test "Prompts use STATUS variable" test_prompts_use_status_variable
 run_test "No deprecated output_parse" test_no_deprecated_output_parse

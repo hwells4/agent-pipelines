@@ -14,18 +14,18 @@ Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for 
 
 ```bash
 # Run a single-stage pipeline (3 equivalent ways)
-./scripts/run.sh work auth 25                    # Shortcut: type session max
-./scripts/run.sh loop work auth 25               # Explicit: loop type session max
-./scripts/run.sh pipeline --single-stage work auth 25  # Engine syntax
+./scripts/run.sh ralph auth 25                    # Shortcut: type session max
+./scripts/run.sh loop ralph auth 25               # Explicit: loop type session max
+./scripts/run.sh pipeline --single-stage ralph auth 25  # Engine syntax
 
 # Run a multi-stage pipeline
-./scripts/run.sh pipeline full-refine.yaml my-session
+./scripts/run.sh pipeline refine.yaml my-session
 
 # Force start (override existing session lock)
-./scripts/run.sh work auth 25 --force
+./scripts/run.sh ralph auth 25 --force
 
 # Resume a crashed/failed session
-./scripts/run.sh work auth 25 --resume
+./scripts/run.sh ralph auth 25 --resume
 
 # Check session status
 ./scripts/run.sh status auth
@@ -97,26 +97,19 @@ scripts/
 │       ├── plateau.sh        # Stop on consensus (type: judgment)
 │       └── fixed-n.sh        # Stop after N iterations (type: fixed)
 ├── stages/                   # Stage definitions (single-stage pipeline configs)
-│   ├── work/                 # Traditional Ralph loop (fixed termination)
+│   ├── ralph/                # The original Ralph loop (fixed termination)
 │   ├── improve-plan/         # Plan refinement (judgment termination)
-│   ├── refine-beads/         # Bead refinement (judgment termination)
+│   ├── refine-tasks/         # Task refinement (judgment termination)
 │   ├── elegance/             # Code elegance review (judgment termination)
 │   ├── bug-discovery/        # Fresh-eyes bug exploration (fixed termination)
-│   ├── find-elegant-solutions/  # Bug triage and elegant fix design (judgment termination)
+│   ├── bug-triage/           # Bug triage and elegant fix design (judgment termination)
 │   ├── idea-wizard/          # Ideation (fixed termination)
 │   ├── research-plan/        # Research-driven planning (judgment termination)
-│   ├── readme-sync/          # Documentation sync (fixed termination)
-│   └── robot-mode/           # Agent-friendly CLI design (fixed termination)
+│   └── test-scanner/         # Test coverage gap discovery (judgment termination)
 └── pipelines/                # Multi-stage pipeline configs
-    ├── quick-refine.yaml     # 3+3 iterations
-    ├── full-refine.yaml      # 5+5 iterations
-    ├── deep-refine.yaml      # 8+8 iterations
-    ├── bug-hunt.yaml         # Discover → triage → refine → fix
-    └── templates/            # Example pipeline templates
-        ├── bug-hunt.yaml     # Documented bug hunting workflow
-        ├── code-review.yaml
-        ├── ideate.yaml
-        └── research-implement.yaml
+    ├── refine.yaml           # 5+5 plan → task iterations
+    ├── ideate.yaml           # Brainstorm improvements
+    └── bug-hunt.yaml         # Discover → triage → refine → fix
 
 skills/                       # Claude Code skill extensions
 commands/                     # Slash command documentation
@@ -191,8 +184,8 @@ model: gpt-5.2-codex  # provider-specific model
 | Type | How It Works | Used By |
 |------|--------------|---------|
 | `queue` | Checks external queue (`bd ready`) is empty | (available for custom stages) |
-| `judgment` | Requires N consecutive agents to write `decision: stop` | improve-plan, refine-beads, elegance, research-plan |
-| `fixed` | Runs exactly N iterations | work, idea-wizard, readme-sync, robot-mode |
+| `judgment` | Requires N consecutive agents to write `decision: stop` | improve-plan, refine-tasks, elegance, research-plan |
+| `fixed` | Runs exactly N iterations | ralph, bug-discovery, idea-wizard |
 
 **v3 status format:** Agents write `status.json` with:
 ```json
@@ -216,7 +209,7 @@ stages:
     stage: improve-plan
     runs: 5
   - name: beads
-    stage: refine-beads
+    stage: refine-tasks
     runs: 5
     inputs:
       from: plan        # Reference previous stage by name
@@ -286,7 +279,7 @@ output_path: docs/output-${SESSION}.md  # direct output to specific file
 1. `/sessions plan` or `/agent-pipelines:create-prd` → Gather requirements, save to `docs/plans/`
 2. `/agent-pipelines:create-tasks` → Break PRD into beads tagged `pipeline/{session}`
 3. `/refine` → Run refinement pipeline (default: 5+5 iterations)
-4. `/ralph` → Run work pipeline until all beads complete
+4. `/ralph` → Run Ralph loop until all beads complete
 
 **Bug hunting flow:**
 ```bash
@@ -343,7 +336,7 @@ Run with --resume to continue from iteration 5
 
 **To resume:**
 ```bash
-./scripts/run.sh work auth 25 --resume
+./scripts/run.sh ralph auth 25 --resume
 ```
 
 **How crash detection works:**
@@ -369,7 +362,7 @@ test -f .claude/locks/{session}.lock && echo "locked" || echo "available"
 rm .claude/locks/{session}.lock
 
 # Force start despite existing lock
-./scripts/run.sh work my-session 10 --force
+./scripts/run.sh ralph my-session 10 --force
 ```
 
 **When you see "Session is already running":**

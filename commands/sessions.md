@@ -23,7 +23,7 @@ Manage pipeline sessions: start, list, monitor, attach, kill, and cleanup. Sessi
 
 **Start a work session:**
 ```bash
-./scripts/run.sh work my-session 25
+./scripts/run.sh ralph my-session 25
 ```
 
 **Check what's running:**
@@ -40,9 +40,9 @@ tmux capture-pane -t pipeline-{session} -p | tail -50
 
 | Type | Command | Stops When |
 |------|---------|------------|
-| **Work** | `./scripts/run.sh work NAME MAX` | All beads complete |
+| **Ralph** | `./scripts/run.sh ralph NAME MAX` | All beads complete |
 | **Improve Plan** | `./scripts/run.sh improve-plan NAME MAX` | 2 agents agree |
-| **Refine Beads** | `./scripts/run.sh refine-beads NAME MAX` | 2 agents agree |
+| **Refine Beads** | `./scripts/run.sh refine-tasks NAME MAX` | 2 agents agree |
 | **Pipeline** | `./scripts/run.sh pipeline FILE NAME` | All stages complete |
 
 ## Session Resources
@@ -61,10 +61,10 @@ If a session crashes:
 ./scripts/run.sh status NAME
 
 # Resume from last checkpoint
-./scripts/run.sh work NAME MAX --resume
+./scripts/run.sh ralph NAME MAX --resume
 
 # Force restart (discard progress)
-./scripts/run.sh work NAME MAX --force
+./scripts/run.sh ralph NAME MAX --force
 ```
 
 ## Cleanup

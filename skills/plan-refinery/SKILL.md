@@ -62,7 +62,7 @@ If no subcommand provided, use AskUserQuestion:
 <routing>
 | Response | Workflow |
 |----------|----------|
-| "Refine Beads" or `refine` | `workflows/refine-beads.md` |
+| "Refine Beads" or `refine` | `workflows/refine-tasks.md` |
 | "Load Context" or `context` | `workflows/load-context.md` |
 | "Review After Context" or `review` | `workflows/review-after-context.md` |
 | "Synthesize Plans" or `synthesize` | `workflows/synthesize-plans.md` |
@@ -110,7 +110,7 @@ If no subcommand provided, use AskUserQuestion:
 <workflows_index>
 | Workflow | Purpose |
 |----------|---------|
-| refine-beads.md | Iteratively improve beads using bead-refiner agent |
+| refine-tasks.md | Iteratively improve beads using bead-refiner agent |
 | load-context.md | Load project context in fresh session |
 | review-after-context.md | Review beads after context loading |
 | synthesize-plans.md | Merge competing LLM plans |

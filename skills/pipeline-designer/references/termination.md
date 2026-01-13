@@ -27,7 +27,7 @@ termination:
   type: queue
 ```
 
-**Example stages:** `work`
+**Example stages:** `ralph`
 
 **Key insight:** The agent doesn't decide when to stop. The queue does.
 
@@ -50,7 +50,7 @@ termination:
   consensus: 2         # Need this many consecutive stops
 ```
 
-**Example stages:** `improve-plan`, `refine-beads`, `elegance`
+**Example stages:** `improve-plan`, `refine-tasks`, `elegance`
 
 **Key insight:** Two-agent consensus prevents single-agent blind spots. Fresh Claude each iteration means independent judgment.
 

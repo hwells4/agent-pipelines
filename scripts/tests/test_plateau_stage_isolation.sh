@@ -71,7 +71,7 @@ test_plateau_ignores_previous_stage_history() {
 
   # Create state with:
   # - Stage 0 (improve-plan): 2 consecutive stops (would trigger plateau if not filtered)
-  # - Stage 1 (refine-beads): current stage, just started
+  # - Stage 1 (refine-tasks): current stage, just started
   cat > "$state_file" << 'EOF'
 {
   "session": "test-session",
@@ -82,7 +82,7 @@ test_plateau_ignores_previous_stage_history() {
   "iteration_completed": 0,
   "stages": [
     {"index": 0, "name": "improve-plan", "status": "complete"},
-    {"index": 1, "name": "refine-beads", "status": "running"}
+    {"index": 1, "name": "refine-tasks", "status": "running"}
   ],
   "history": [
     {"iteration": 1, "stage": "improve-plan", "decision": "continue"},
@@ -98,7 +98,7 @@ EOF
   export MIN_ITERATIONS=1
   export CONSENSUS=2
 
-  # Should NOT complete: only 1 stop for refine-beads (current), need 2
+  # Should NOT complete: only 1 stop for refine-tasks (current), need 2
   # The 2 stops from improve-plan should be ignored
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
@@ -118,7 +118,7 @@ test_plateau_triggers_for_same_stage() {
   local state_file="$test_dir/state.json"
   local status_file="$test_dir/status.json"
 
-  # REALISTIC STATE: At iteration 2 for refine-beads, history includes current iteration
+  # REALISTIC STATE: At iteration 2 for refine-tasks, history includes current iteration
   # This matches engine flow: update_iteration is called BEFORE check_completion
   cat > "$state_file" << 'EOF'
 {
@@ -130,13 +130,13 @@ test_plateau_triggers_for_same_stage() {
   "iteration_completed": 2,
   "stages": [
     {"index": 0, "name": "improve-plan", "status": "complete"},
-    {"index": 1, "name": "refine-beads", "status": "running"}
+    {"index": 1, "name": "refine-tasks", "status": "running"}
   ],
   "history": [
     {"iteration": 1, "stage": "improve-plan", "decision": "continue"},
     {"iteration": 2, "stage": "improve-plan", "decision": "stop"},
-    {"iteration": 1, "stage": "refine-beads", "decision": "stop"},
-    {"iteration": 2, "stage": "refine-beads", "decision": "stop"}
+    {"iteration": 1, "stage": "refine-tasks", "decision": "stop"},
+    {"iteration": 2, "stage": "refine-tasks", "decision": "stop"}
   ]
 }
 EOF
@@ -147,7 +147,7 @@ EOF
   export MIN_ITERATIONS=1
   export CONSENSUS=2
 
-  # Should complete: 2 consecutive stops for refine-beads in history (iterations 1 and 2)
+  # Should complete: 2 consecutive stops for refine-tasks in history (iterations 1 and 2)
   check_completion "test" "$state_file" "$status_file" >/dev/null 2>&1
   local result=$?
 

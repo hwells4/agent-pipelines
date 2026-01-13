@@ -134,7 +134,7 @@ Last successful iteration: 4
 Can resume from iteration: 5
 
 Actions:
-  • Resume: ./scripts/run.sh work ${session} 25 --resume
+  • Resume: ./scripts/run.sh ralph ${session} 25 --resume
   • Cleanup: /agent-pipelines:sessions cleanup
   • View progress: cat .claude/pipeline-runs/${session}/progress-${session}.md
 ```
@@ -164,8 +164,8 @@ Last successful: 11
 Error: (check state.json for details)
 
 Actions:
-  • Resume: ./scripts/run.sh work ${session} 25 --resume
-  • Force restart: ./scripts/run.sh work ${session} 25 --force
+  • Resume: ./scripts/run.sh ralph ${session} 25 --resume
+  • Force restart: ./scripts/run.sh ralph ${session} 25 --force
   • View state: cat .claude/pipeline-runs/${session}/state.json
 ```
 </process>

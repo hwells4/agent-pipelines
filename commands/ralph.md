@@ -53,7 +53,7 @@ cat {file} | head -10
 
 4. **Start the work pipeline:**
 ```bash
-./scripts/run.sh work {session} {iterations}
+./scripts/run.sh ralph {session} {iterations}
 ```
 
 5. **Confirm to user:**
@@ -72,11 +72,11 @@ Stop:    /sessions kill {session}
 **User:** "Beads labeled pipeline/auth"
 **Assistant:** "How many iterations?"
 **User:** "25"
-**Assistant:** *runs `./scripts/run.sh work auth 25`* "Started pipeline 'auth'..."
+**Assistant:** *runs `./scripts/run.sh ralph auth 25`* "Started pipeline 'auth'..."
 
 **User:** `/ralph`
 **Assistant:** "Where are your tasks?"
 **User:** "All ready beads"
 **Assistant:** *checks `bd ready`* "Found 8 ready beads. How many iterations?"
 **User:** "10"
-**Assistant:** *runs `./scripts/run.sh work default 10`* "Started pipeline 'default'..."
+**Assistant:** *runs `./scripts/run.sh ralph default 10`* "Started pipeline 'default'..."

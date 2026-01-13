@@ -22,9 +22,9 @@ Runs refinement pipelines: multiple agents review and improve plans and beads. P
 ## Two-Stage Pipeline
 
 1. **improve-plan** - Reviews documents in `docs/plans/`
-2. **refine-beads** - Reviews beads for the session
+2. **refine-tasks** - Reviews beads for the session
 
-| Pipeline | improve-plan | refine-beads | Best for |
+| Pipeline | improve-plan | refine-tasks | Best for |
 |----------|--------------|--------------|----------|
 | `quick`  | 3 iterations | 3 iterations | Fast validation |
 | `full`   | 5 iterations | 5 iterations | Standard workflow |

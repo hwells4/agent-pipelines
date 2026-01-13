@@ -11,7 +11,7 @@ Provide a unified interface for managing pipeline sessions. Sessions are autonom
 ## Everything Is A Pipeline
 
 A "loop" is a single-stage pipeline. The unified engine treats them identically.
-- **Single-stage**: `./scripts/run.sh work auth 25`
+- **Single-stage**: `./scripts/run.sh ralph auth 25`
 - **Multi-stage**: `./scripts/run.sh pipeline full-refine.yaml myproject`
 
 Both use the same directory structure, state files, and lock management.
@@ -99,7 +99,7 @@ If no subcommand provided, use AskUserQuestion:
 <quick_start>
 **Start a work session:**
 ```bash
-./scripts/run.sh work my-session 25
+./scripts/run.sh ralph my-session 25
 ```
 
 **Check what's running:**

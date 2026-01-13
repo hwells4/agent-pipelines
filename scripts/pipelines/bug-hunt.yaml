@@ -11,24 +11,24 @@ stages:
     runs: 8
 
   # Stage 2: Triage bugs, find patterns, create elegant solutions as beads
-  - name: elegance
-    stage: find-elegant-solutions
-    runs: 5
+  - name: triage
+    stage: bug-triage
+    runs: 2
     inputs:
       from: discover
       select: latest
 
-  # Stage 3: Refine the beads created during elegance
+  # Stage 3: Refine the tasks created during triage
   - name: refine
-    stage: refine-beads
+    stage: refine-tasks
     runs: 3
     inputs:
-      from: elegance
+      from: triage
       select: latest
 
   # Stage 4: Implement the fixes
   - name: fix
-    stage: work
+    stage: ralph
     runs: 25
     inputs:
       from: refine
