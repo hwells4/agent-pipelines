@@ -32,7 +32,9 @@ run_parallel_provider() {
   jq '.status = "running"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
 
   local stage_count=$(echo "$stages_json" | jq 'length')
-  local default_model=$(echo "$defaults_json" | jq -r '.model // "opus"')
+  # Provider-aware model default: opus for Claude, gpt-5.2-codex for Codex
+  local provider_default=$(get_default_model "$provider")
+  local default_model=$(echo "$defaults_json" | jq -r ".model // \"$provider_default\"")
 
   for stage_idx in $(seq 0 $((stage_count - 1))); do
     local stage_config=$(echo "$stages_json" | jq ".[$stage_idx]")

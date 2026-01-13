@@ -13,6 +13,17 @@ normalize_provider() {
   esac
 }
 
+# Get the default model for a provider
+# Usage: get_default_model "$provider"
+get_default_model() {
+  local provider=$(normalize_provider "$1")
+  case "$provider" in
+    claude) echo "opus" ;;
+    codex) echo "gpt-5.2-codex" ;;
+    *) echo "opus" ;;  # fallback
+  esac
+}
+
 # Check if a provider CLI is available
 # Usage: check_provider "$provider"
 check_provider() {

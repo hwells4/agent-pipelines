@@ -106,14 +106,19 @@ load_stage() {
     STAGE_CONSENSUS="2"
   fi
 
-  STAGE_MODEL=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$STAGE_CONFIG" ".model" "opus")}}
+  # Resolve provider first (needed for model default)
+  STAGE_PROVIDER=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$STAGE_CONFIG" ".provider" "claude")}}
+
+  # Model default is provider-aware: opus for Claude, gpt-5.2-codex for Codex
+  local default_model=$(get_default_model "$STAGE_PROVIDER")
+  STAGE_MODEL=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$STAGE_CONFIG" ".model" "$default_model")}}
+
   STAGE_DELAY=$(json_get "$STAGE_CONFIG" ".delay" "3")
   STAGE_CHECK_BEFORE=$(json_get "$STAGE_CONFIG" ".check_before" "false")
   STAGE_OUTPUT_PARSE=$(json_get "$STAGE_CONFIG" ".output_parse" "")
   STAGE_ITEMS=$(json_get "$STAGE_CONFIG" ".items" "")
   STAGE_PROMPT_VALUE=$(json_get "$STAGE_CONFIG" ".prompt" "")
   STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
-  STAGE_PROVIDER=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$STAGE_CONFIG" ".provider" "claude")}}
   STAGE_CONTEXT=${PIPELINE_CLI_CONTEXT:-${CLAUDE_PIPELINE_CONTEXT:-$(json_get "$STAGE_CONFIG" ".context" "")}}
 
   # Export for completion strategies
@@ -476,8 +481,10 @@ run_pipeline() {
   echo ""
 
   # Get defaults (CLI > env > pipeline config > built-in)
-  local default_model=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$pipeline_json" ".defaults.model" "opus")}}
+  # Resolve provider first (needed for model default)
   local default_provider=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$pipeline_json" ".defaults.provider" "claude")}}
+  local provider_default_model=$(get_default_model "$default_provider")
+  local default_model=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$pipeline_json" ".defaults.model" "$provider_default_model")}}
 
   # Execute each stage
   local stage_count=$(json_array_len "$pipeline_json" ".stages")
