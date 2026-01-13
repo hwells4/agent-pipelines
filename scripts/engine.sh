@@ -423,6 +423,13 @@ run_pipeline() {
 
     update_stage "$state_file" "$stage_idx" "$stage_name" "running"
 
+    # Reset iteration counters when starting a stage fresh (not resuming mid-stage)
+    # This prevents stale iteration_completed from previous stage causing resume issues
+    # See: docs/bug-investigation-2026-01-12-state-transition.md
+    if [ "$stage_idx" -ne "$start_stage" ] || [ "$start_iteration" -le 1 ]; then
+      reset_iteration_counters "$state_file"
+    fi
+
     # If using a stage type, load its config
     if [ -n "$stage_type" ]; then
       load_stage "$stage_type" || exit 1

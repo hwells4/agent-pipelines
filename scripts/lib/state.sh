@@ -224,6 +224,17 @@ reset_for_resume() {
     "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
 }
 
+# Reset iteration counters for new stage
+# Usage: reset_iteration_counters "$state_file"
+# Call this when starting a new stage in a multi-stage pipeline
+# to prevent stale iteration_completed values from previous stage
+reset_iteration_counters() {
+  local state_file=$1
+
+  jq '.iteration = 0 | .iteration_completed = 0 | .iteration_started = null' \
+    "$state_file" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+}
+
 # Mark complete
 # Usage: mark_complete "$state_file" "$reason"
 mark_complete() {
