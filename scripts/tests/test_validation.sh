@@ -9,11 +9,11 @@ source "$SCRIPT_DIR/lib/validate.sh"
 # Loop Validation Tests
 #-------------------------------------------------------------------------------
 
-test_validate_work_loop() {
-  # Work loop should pass validation
-  validate_loop "work" "--quiet"
+test_validate_ralph_loop() {
+  # Ralph loop should pass validation
+  validate_loop "ralph" "--quiet"
   local result=$?
-  assert_eq "0" "$result" "work loop passes validation"
+  assert_eq "0" "$result" "ralph loop passes validation"
 }
 
 test_validate_improve_plan_loop() {
@@ -48,11 +48,11 @@ test_validate_nonexistent_loop() {
 # Pipeline Validation Tests
 #-------------------------------------------------------------------------------
 
-test_validate_full_refine_pipeline() {
-  # Full-refine pipeline should pass validation
-  validate_pipeline "full-refine" "--quiet"
+test_validate_refine_pipeline() {
+  # Refine pipeline should pass validation
+  validate_pipeline "refine" "--quiet"
   local result=$?
-  assert_eq "0" "$result" "full-refine pipeline passes validation"
+  assert_eq "0" "$result" "refine pipeline passes validation"
 }
 
 test_validate_quick_refine_pipeline() {
@@ -73,12 +73,12 @@ test_validate_deep_refine_pipeline() {
 # Run Tests
 #-------------------------------------------------------------------------------
 
-run_test "Validate work loop" test_validate_work_loop
+run_test "Validate ralph loop" test_validate_ralph_loop
 run_test "Validate improve-plan loop" test_validate_improve_plan_loop
 run_test "Validate elegance loop" test_validate_elegance_loop
 run_test "Validate idea-wizard loop" test_validate_idea_wizard_loop
 run_test "Validate nonexistent loop fails" test_validate_nonexistent_loop
-run_test "Validate full-refine pipeline" test_validate_full_refine_pipeline
+run_test "Validate refine pipeline" test_validate_refine_pipeline
 run_test "Validate quick-refine pipeline" test_validate_quick_refine_pipeline
 run_test "Validate deep-refine pipeline" test_validate_deep_refine_pipeline
 
