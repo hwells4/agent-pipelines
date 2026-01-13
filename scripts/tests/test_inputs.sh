@@ -298,4 +298,111 @@ test_inputs_config_defaults() {
 run_test "Inputs config parsing" test_inputs_config_parsing
 run_test "Inputs config defaults" test_inputs_config_defaults
 
+#-------------------------------------------------------------------------------
+# Initial Inputs Tests (v4: pipeline-level inputs)
+#-------------------------------------------------------------------------------
+
+test_initial_inputs_single_file() {
+  # Setup: initial-inputs.json contains a single file path
+  # Expected: from_initial array contains that file
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-work/iterations"
+
+  # Create a test input file
+  echo "plan content" > "$tmp/test-plan.md"
+
+  # Create initial-inputs.json with absolute path
+  echo '["'"$tmp/test-plan.md"'"]' > "$tmp/initial-inputs.json"
+
+  local config='{"id":"work","index":0}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_initial | length')
+  local file=$(echo "$inputs" | jq -r '.from_initial[0]')
+
+  assert_eq "1" "$count" "from_initial contains single file"
+  assert_contains "$file" "test-plan.md" "from_initial contains correct file"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_initial_inputs_multiple_files() {
+  # Setup: initial-inputs.json contains multiple files
+  # Expected: from_initial array contains all files
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-work/iterations"
+
+  echo "plan 1" > "$tmp/plan1.md"
+  echo "plan 2" > "$tmp/plan2.md"
+  echo "plan 3" > "$tmp/plan3.md"
+
+  echo '["'"$tmp/plan1.md"'","'"$tmp/plan2.md"'","'"$tmp/plan3.md"'"]' > "$tmp/initial-inputs.json"
+
+  local config='{"id":"work","index":0}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_initial | length')
+
+  assert_eq "3" "$count" "from_initial contains all files"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_initial_inputs_empty_default() {
+  # Setup: No initial-inputs.json exists
+  # Expected: from_initial is empty array
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-work/iterations"
+
+  local config='{"id":"work","index":0}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local from_initial=$(echo "$inputs" | jq -c '.from_initial')
+
+  assert_eq "[]" "$from_initial" "from_initial defaults to empty array"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_initial_inputs_invalid_json() {
+  # Setup: initial-inputs.json contains invalid JSON
+  # Expected: from_initial is empty array (graceful fallback)
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-work/iterations"
+
+  echo "not valid json" > "$tmp/initial-inputs.json"
+
+  local config='{"id":"work","index":0}'
+  local inputs=$(build_inputs_json "$tmp" "$config" 1)
+  local from_initial=$(echo "$inputs" | jq -c '.from_initial')
+
+  assert_eq "[]" "$from_initial" "invalid JSON falls back to empty array"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_initial_inputs_in_context_json() {
+  # Setup: Generate context with initial inputs
+  # Expected: context.json includes from_initial
+  local tmp=$(create_test_dir)
+  mkdir -p "$tmp/stage-00-work/iterations"
+
+  echo "my plan" > "$tmp/the-plan.md"
+  echo '["'"$tmp/the-plan.md"'"]' > "$tmp/initial-inputs.json"
+
+  local stage_config='{"id":"work","index":0}'
+  local context_file=$(generate_context "test-session" "1" "$stage_config" "$tmp")
+
+  local from_initial=$(jq -c '.inputs.from_initial' "$context_file")
+  local count=$(jq '.inputs.from_initial | length' "$context_file")
+
+  assert_eq "1" "$count" "context.json includes from_initial"
+  assert_neq "[]" "$from_initial" "from_initial is not empty"
+
+  cleanup_test_dir "$tmp"
+}
+
+run_test "Initial inputs single file" test_initial_inputs_single_file
+run_test "Initial inputs multiple files" test_initial_inputs_multiple_files
+run_test "Initial inputs empty default" test_initial_inputs_empty_default
+run_test "Initial inputs invalid JSON" test_initial_inputs_invalid_json
+run_test "Initial inputs in context.json" test_initial_inputs_in_context_json
+
 test_summary

@@ -212,9 +212,21 @@ build_inputs_json() {
     fi
   fi
 
+  # Load initial inputs if available (v4: pipeline-level inputs)
+  local from_initial="[]"
+  local initial_file="$run_dir/initial-inputs.json"
+  if [ -f "$initial_file" ]; then
+    from_initial=$(cat "$initial_file" 2>/dev/null || echo "[]")
+    # Validate it's valid JSON array
+    if ! echo "$from_initial" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      from_initial="[]"
+    fi
+  fi
+
   # Combine into inputs object
   jq -n \
     --argjson from_stage "$from_stage" \
     --argjson from_iterations "$from_iterations" \
-    '{from_stage: $from_stage, from_previous_iterations: $from_iterations}'
+    --argjson from_initial "$from_initial" \
+    '{from_stage: $from_stage, from_previous_iterations: $from_iterations, from_initial: $from_initial}'
 }

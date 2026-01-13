@@ -16,6 +16,66 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 
+# Parse global flags early
+TMUX_FLAG=""
+INPUT_FILES=()
+REMAINING_ARGS=()
+skip_next=false
+for i in $(seq 1 $#); do
+  arg="${!i}"
+  if [ "$skip_next" = true ]; then
+    skip_next=false
+    continue
+  fi
+  case "$arg" in
+    --tmux) TMUX_FLAG="true" ;;
+    --input)
+      next_i=$((i + 1))
+      INPUT_FILES+=("${!next_i}")
+      skip_next=true
+      ;;
+    *) REMAINING_ARGS+=("$arg") ;;
+  esac
+done
+set -- "${REMAINING_ARGS[@]}"
+
+# Export CLI inputs for pipeline engine
+if [ ${#INPUT_FILES[@]} -gt 0 ]; then
+  export PIPELINE_CLI_INPUTS=$(printf '%s\n' "${INPUT_FILES[@]}" | jq -R . | jq -s .)
+fi
+
+# Helper: wrap command in tmux for persistent background execution
+run_in_tmux() {
+  local session_name=$1
+  shift
+  local cmd="$*"
+
+  # Check if tmux session already exists
+  if tmux has-session -t "pipeline-${session_name}" 2>/dev/null; then
+    echo "Error: tmux session 'pipeline-${session_name}' already exists" >&2
+    echo "  Attach: tmux attach -t pipeline-${session_name}" >&2
+    echo "  Kill:   tmux kill-session -t pipeline-${session_name}" >&2
+    exit 1
+  fi
+
+  # Start in tmux
+  tmux new-session -d -s "pipeline-${session_name}" -c "$(pwd)" "$cmd"
+
+  # Verify startup
+  sleep 1
+  if tmux has-session -t "pipeline-${session_name}" 2>/dev/null; then
+    echo "Session started in tmux: pipeline-${session_name}"
+    echo ""
+    echo "  Monitor: tmux capture-pane -t pipeline-${session_name} -p | tail -50"
+    echo "  Attach:  tmux attach -t pipeline-${session_name}"
+    echo "  Status:  ./scripts/run.sh status ${session_name}"
+    echo "  Kill:    tmux kill-session -t pipeline-${session_name}"
+  else
+    echo "Error: Session failed to start" >&2
+    exit 1
+  fi
+}
+
 show_help() {
   echo "Usage: run.sh <command> [options]"
   echo ""
@@ -29,8 +89,10 @@ show_help() {
   echo "  status <session>                Check session status"
   echo ""
   echo "Flags:"
+  echo "  --tmux                          Run in tmux for persistent background execution"
   echo "  --force                         Override existing session lock"
   echo "  --resume                        Resume a crashed/failed session"
+  echo "  --input <file>                  Initial input file for pipeline (can use multiple times)"
   echo "  --verbose                       Show detailed test output"
   echo ""
   echo "Available stages:"
@@ -192,16 +254,38 @@ case "$1" in
 
   loop)
     # Convert loop command to single-stage pipeline
-    # Usage: run.sh loop <type> [session] [max] [--force] [--resume]
+    # Usage: run.sh loop <type> [session] [max] [--force] [--resume] [--tmux]
     shift
     STAGE_TYPE=${1:?"Usage: run.sh loop <type> [session] [max]"}
+    SESSION_NAME=${2:-"$STAGE_TYPE"}
     shift
-    # Pass remaining args to engine.sh pipeline with special marker
-    exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+
+    if [ "$TMUX_FLAG" = "true" ]; then
+      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+      exit 0
+    else
+      exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+    fi
     ;;
 
   pipeline)
-    exec "$SCRIPT_DIR/engine.sh" "$@"
+    shift
+    PIPELINE_FILE=${1:?"Usage: run.sh pipeline <file> [session]"}
+    SESSION_NAME=${2:-""}
+
+    # Derive session name from pipeline if not provided
+    if [ -z "$SESSION_NAME" ]; then
+      source "$LIB_DIR/yaml.sh"
+      pipeline_json=$(yaml_to_json "$PIPELINE_FILE" 2>/dev/null || echo "{}")
+      SESSION_NAME=$(json_get "$pipeline_json" ".name" "pipeline")-$(date +%Y%m%d-%H%M%S)
+    fi
+
+    if [ "$TMUX_FLAG" = "true" ]; then
+      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "${@:3}"
+      exit 0
+    else
+      exec "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "${@:3}"
+    fi
     ;;
 
   -h|--help|help)
@@ -214,8 +298,15 @@ case "$1" in
     # e.g., ./run.sh work auth 25 → same as ./run.sh loop work auth 25
     if [ -d "$SCRIPT_DIR/stages/$1" ]; then
       STAGE_TYPE=$1
+      SESSION_NAME=${2:-"$STAGE_TYPE"}
       shift
-      exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+
+      if [ "$TMUX_FLAG" = "true" ]; then
+        run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+        exit 0
+      else
+        exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+      fi
     fi
 
     echo "Error: Unknown command '$1'"

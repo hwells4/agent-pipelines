@@ -110,7 +110,7 @@ load_stage() {
   STAGE_CHECK_BEFORE=$(json_get "$STAGE_CONFIG" ".check_before" "false")
   STAGE_OUTPUT_PARSE=$(json_get "$STAGE_CONFIG" ".output_parse" "")
   STAGE_ITEMS=$(json_get "$STAGE_CONFIG" ".items" "")
-  STAGE_PROMPT_NAME=$(json_get "$STAGE_CONFIG" ".prompt" "prompt")
+  STAGE_PROMPT_VALUE=$(json_get "$STAGE_CONFIG" ".prompt" "")
   STAGE_OUTPUT_PATH=$(json_get "$STAGE_CONFIG" ".output_path" "")
   STAGE_PROVIDER=$(json_get "$STAGE_CONFIG" ".provider" "claude")
 
@@ -120,12 +120,35 @@ load_stage() {
   export ITEMS="$STAGE_ITEMS"
 
   # Load prompt
-  local prompt_file="$stage_dir/prompts/${STAGE_PROMPT_NAME}.md"
-  if [ ! -f "$prompt_file" ]; then
-    prompt_file="$stage_dir/prompt.md"
+  local prompt_candidates=()
+  local prompt_file=""
+
+  if [ -n "$STAGE_PROMPT_VALUE" ] && [ "$STAGE_PROMPT_VALUE" != "null" ]; then
+    local prompt_path="${STAGE_PROMPT_VALUE#./}"
+    if [[ "$prompt_path" == /* ]]; then
+      prompt_candidates+=("$prompt_path")
+    elif [[ "$prompt_path" == */* ]]; then
+      [[ "$prompt_path" == *.md ]] || prompt_path="${prompt_path}.md"
+      prompt_candidates+=("$stage_dir/$prompt_path")
+    else
+      local prompt_name="$prompt_path"
+      [[ "$prompt_name" == *.md ]] || prompt_name="${prompt_name}.md"
+      prompt_candidates+=("$stage_dir/$prompt_name")
+      prompt_candidates+=("$stage_dir/prompts/$prompt_name")
+    fi
   fi
 
-  if [ ! -f "$prompt_file" ]; then
+  prompt_candidates+=("$stage_dir/prompts/prompt.md")
+  prompt_candidates+=("$stage_dir/prompt.md")
+
+  for candidate in "${prompt_candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      prompt_file="$candidate"
+      break
+    fi
+  done
+
+  if [ -z "$prompt_file" ]; then
     echo "Error: No prompt found for loop: $stage_type" >&2
     return 1
   fi
@@ -333,6 +356,55 @@ run_stage() {
 }
 
 #-------------------------------------------------------------------------------
+# Initial Inputs
+#-------------------------------------------------------------------------------
+
+# Resolve initial input paths (files, globs, directories) to absolute paths
+# Usage: resolve_initial_inputs "$inputs_json"
+# Returns: JSON array of absolute file paths
+resolve_initial_inputs() {
+  local inputs_json=$1
+
+  # Handle empty or null inputs
+  if [ -z "$inputs_json" ] || [ "$inputs_json" = "null" ] || [ "$inputs_json" = "[]" ]; then
+    echo "[]"
+    return
+  fi
+
+  local resolved_files=()
+
+  while IFS= read -r pattern; do
+    [ -z "$pattern" ] && continue
+
+    # Make path absolute if relative
+    local abs_pattern="$pattern"
+    [[ "$pattern" != /* ]] && abs_pattern="$PROJECT_ROOT/$pattern"
+
+    if [ -d "$abs_pattern" ]; then
+      # Directory: expand to all files (md, yaml, json, txt)
+      while IFS= read -r f; do
+        [ -n "$f" ] && resolved_files+=("$f")
+      done < <(find "$abs_pattern" -type f \( -name "*.md" -o -name "*.yaml" -o -name "*.json" -o -name "*.txt" \) 2>/dev/null | sort)
+    elif [[ "$abs_pattern" == *"*"* ]]; then
+      # Glob: expand pattern
+      for f in $abs_pattern; do
+        [ -f "$f" ] && resolved_files+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
+      done
+    elif [ -f "$abs_pattern" ]; then
+      # Single file
+      resolved_files+=("$(cd "$(dirname "$abs_pattern")" && pwd)/$(basename "$abs_pattern")")
+    fi
+  done < <(echo "$inputs_json" | jq -r '.[]' 2>/dev/null)
+
+  # Output as JSON array
+  if [ ${#resolved_files[@]} -eq 0 ]; then
+    echo "[]"
+  else
+    printf '%s\n' "${resolved_files[@]}" | jq -R . | jq -s .
+  fi
+}
+
+#-------------------------------------------------------------------------------
 # Pipeline Mode
 #-------------------------------------------------------------------------------
 
@@ -375,6 +447,20 @@ run_pipeline() {
   local run_dir="$PROJECT_ROOT/.claude/pipeline-runs/$session"
   mkdir -p "$run_dir"
   cp "$pipeline_file" "$run_dir/pipeline.yaml"
+
+  # Resolve and store initial inputs (v4: pipeline-level inputs)
+  local initial_inputs=$(json_get "$pipeline_json" ".inputs" "[]")
+  # Also check for CLI-provided inputs (via PIPELINE_CLI_INPUTS env var)
+  if [ -n "$PIPELINE_CLI_INPUTS" ]; then
+    # Merge CLI inputs with YAML inputs (CLI takes precedence if both exist)
+    if [ "$initial_inputs" = "[]" ] || [ "$initial_inputs" = "null" ]; then
+      initial_inputs="$PIPELINE_CLI_INPUTS"
+    else
+      initial_inputs=$(echo "$initial_inputs $PIPELINE_CLI_INPUTS" | jq -s 'add')
+    fi
+  fi
+  local resolved_inputs=$(resolve_initial_inputs "$initial_inputs")
+  echo "$resolved_inputs" > "$run_dir/initial-inputs.json"
 
   # Initialize state
   local state_file=$(init_state "$session" "pipeline" "$run_dir")

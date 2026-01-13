@@ -1,0 +1,36 @@
+# Queue Provider TDD Pipeline
+# Refine the queue-provider-abstraction plan with TDD focus
+#
+# Flow:
+# 1. TDD plan refinement (ensure test strategy is complete)
+# 2. Task refinement (refine implementation tasks)
+# 3. TDD bead creation (create test beads before impl beads)
+
+name: queue-provider-tdd
+description: TDD-focused refinement for queue provider abstraction
+
+# Initial inputs: the plan to refine
+inputs:
+  - docs/plans/queue-provider-abstraction.md
+
+stages:
+  # Stage 1: Refine plan with TDD focus (3 iterations)
+  - name: plan-tdd
+    stage: tdd-plan-refine
+    runs: 3
+
+  # Stage 2: Refine tasks (3 iterations)
+  - name: tasks
+    stage: refine-tasks
+    runs: 3
+    inputs:
+      from: plan-tdd
+      select: latest
+
+  # Stage 3: Create TDD bead pairs (test → impl)
+  - name: beads
+    stage: tdd-create-beads
+    runs: 2
+    inputs:
+      from: tasks
+      select: latest
