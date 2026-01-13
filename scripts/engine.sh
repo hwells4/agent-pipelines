@@ -297,7 +297,8 @@ run_stage() {
     local history_json=$(status_to_history_json "$status_file")
 
     # Update state - mark iteration completed with status data
-    update_iteration "$state_file" "$i" "$history_json"
+    # Pass stage name for multi-stage plateau filtering
+    update_iteration "$state_file" "$i" "$history_json" "$STAGE_NAME"
     mark_iteration_completed "$state_file" "$i"
 
     # Post-iteration completion check (v3: pass status file path)
@@ -558,7 +559,9 @@ run_pipeline() {
         create_error_status "$status_file" "Agent wrote invalid status.json"
       fi
 
-      # Track iteration completion in state
+      # Extract status data and update history (needed for plateau to work across stages)
+      local history_json=$(status_to_history_json "$status_file")
+      update_iteration "$state_file" "$iteration" "$history_json" "$stage_name"
       mark_iteration_completed "$state_file" "$iteration"
 
       # Check completion (v3: pass status file path)

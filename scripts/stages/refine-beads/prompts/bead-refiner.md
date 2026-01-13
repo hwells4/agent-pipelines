@@ -16,6 +16,15 @@ cat ${PROGRESS}
 cat AGENTS.md 2>/dev/null || echo "No AGENTS.md"
 ```
 
+Check for inputs from previous pipeline stages:
+```bash
+# Get paths to previous stage outputs (if configured via inputs.from in pipeline)
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} 2>/dev/null | while read file; do
+  echo "=== Previous stage output: $file ==="
+  cat "$file"
+done
+```
+
 ### Step 2: List All Beads
 
 ```bash

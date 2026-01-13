@@ -15,8 +15,9 @@
 #   ${PERSPECTIVE}                - Current perspective (for fan-out)
 #   ${OUTPUT_PATH}                - Path for tracked output (if configured in stage.yaml)
 #   ${PROGRESS_FILE}              - Alias for ${PROGRESS}
-#   ${INPUTS.stage-name}          - Outputs from a previous stage
-#   ${INPUTS}                     - Shorthand for previous stage outputs
+#
+# Note: Inter-stage inputs are handled via context.json (see inputs.from_stage)
+# Agents should read ${CTX} and parse .inputs.from_stage for previous stage outputs
 
 # Resolve all variables in a prompt template
 # Usage: resolve_prompt "$template" "$vars"
@@ -49,21 +50,6 @@ resolve_prompt() {
     resolved="${resolved//\$\{SESSION_NAME\}/$ctx_session}"
     resolved="${resolved//\$\{ITERATION\}/$ctx_iteration}"
     resolved="${resolved//\$\{PROGRESS_FILE\}/$ctx_progress}"
-
-    # Handle ${INPUTS.stage-name} via context inputs
-    local run_dir=$(echo "$ctx_json" | jq -r '.paths.session_dir // ""')
-    while [[ "$resolved" =~ \$\{INPUTS\.([a-zA-Z0-9_-]+)\} ]]; do
-      local ref_stage_name="${BASH_REMATCH[1]}"
-      local inputs_content=$(resolve_stage_inputs "$run_dir" "$ref_stage_name")
-      resolved="${resolved//\$\{INPUTS.$ref_stage_name\}/$inputs_content}"
-    done
-
-    # Handle ${INPUTS} (previous stage shorthand)
-    if [[ "$resolved" == *'${INPUTS}'* ]] && [ -n "$run_dir" ]; then
-      local stage_idx=$(echo "$ctx_json" | jq -r '.stage.index // 0')
-      local prev_inputs=$(resolve_previous_stage_inputs "$run_dir" "$stage_idx")
-      resolved="${resolved//\$\{INPUTS\}/$prev_inputs}"
-    fi
 
     echo "$resolved"
     return
@@ -104,88 +90,7 @@ resolve_prompt() {
   resolved="${resolved//\$\{PROGRESS\}/$progress_file}"
   resolved="${resolved//\$\{PROGRESS_FILE\}/$progress_file}"
 
-  # Resolve ${INPUTS.stage-name} references
-  while [[ "$resolved" =~ \$\{INPUTS\.([a-zA-Z0-9_-]+)\} ]]; do
-    local ref_stage_name="${BASH_REMATCH[1]}"
-    local inputs_content=$(resolve_stage_inputs "$run_dir" "$ref_stage_name")
-    resolved="${resolved//\$\{INPUTS.$ref_stage_name\}/$inputs_content}"
-  done
-
-  # Resolve ${INPUTS} (previous stage shorthand)
-  if [[ "$resolved" == *'${INPUTS}'* ]] && [ -n "$run_dir" ]; then
-    local prev_inputs=$(resolve_previous_stage_inputs "$run_dir" "$stage_idx")
-    resolved="${resolved//\$\{INPUTS\}/$prev_inputs}"
-  fi
-
   echo "$resolved"
-}
-
-# Get outputs from a named stage
-# Usage: resolve_stage_inputs "$run_dir" "$stage_name"
-resolve_stage_inputs() {
-  local run_dir=$1
-  local stage_name=$2
-
-  if [ -z "$run_dir" ] || [ ! -d "$run_dir" ]; then
-    echo "[No run directory]"
-    return
-  fi
-
-  # Find the stage directory
-  local stage_dir=$(find "$run_dir" -maxdepth 1 -type d -name "stage-*-$stage_name" 2>/dev/null | head -1)
-
-  if [ -z "$stage_dir" ] || [ ! -d "$stage_dir" ]; then
-    echo "[No outputs found for stage: $stage_name]"
-    return
-  fi
-
-  # Collect output files (exclude progress.md)
-  local output_files=$(find "$stage_dir" -name "*.md" ! -name "progress.md" -type f 2>/dev/null | sort)
-
-  if [ -z "$output_files" ]; then
-    echo "[No output files in stage: $stage_name]"
-    return
-  fi
-
-  # Count files
-  local file_count=$(echo "$output_files" | wc -l | tr -d ' ')
-
-  # Single output: return content directly
-  if [ "$file_count" -eq 1 ]; then
-    cat "$output_files"
-    return
-  fi
-
-  # Multiple outputs: format with headers
-  local result="--- Outputs from stage: $stage_name ---"$'\n'
-
-  for file in $output_files; do
-    local filename=$(basename "$file")
-    result="${result}"$'\n'"=== $filename ==="$'\n'
-    result="${result}$(cat "$file")"$'\n'
-  done
-
-  echo "$result"
-}
-
-# Get previous stage inputs
-# Usage: resolve_previous_stage_inputs "$run_dir" "$current_stage_idx"
-resolve_previous_stage_inputs() {
-  local run_dir=$1
-  local current_idx=$2
-
-  if [ "$current_idx" -le 0 ]; then
-    echo ""
-    return
-  fi
-
-  # Find previous stage directory
-  local prev_dir=$(find "$run_dir" -maxdepth 1 -type d -name "stage-${current_idx}-*" 2>/dev/null | head -1)
-
-  if [ -n "$prev_dir" ]; then
-    local stage_name=$(basename "$prev_dir" | sed 's/stage-[0-9]*-//')
-    resolve_stage_inputs "$run_dir" "$stage_name"
-  fi
 }
 
 # Load prompt from file and resolve variables

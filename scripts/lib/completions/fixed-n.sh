@@ -12,9 +12,18 @@ check_completion() {
   local state_file=$2
   local status_file=$3
 
-  local iteration=$(get_state "$state_file" "iteration")
-  iteration=${iteration:-0}  # Default to 0 if empty
-  local target=${FIXED_ITERATIONS:-${MAX_ITERATIONS:-10}}  # Default to 10 if both empty
+  # Safely get iteration with integer validation
+  local iteration=$(get_state "$state_file" "iteration" | tr -d '[:space:]')
+  iteration=${iteration:-0}
+  # Ensure iteration is a valid integer (strip non-numeric chars as safety)
+  [[ ! "$iteration" =~ ^[0-9]+$ ]] && iteration=0
+
+  # Get target with proper fallback chain (handle empty strings)
+  local target="${FIXED_ITERATIONS:-}"
+  [ -z "$target" ] && target="${MAX_ITERATIONS:-}"
+  [ -z "$target" ] && target=10
+  # Ensure target is a valid integer
+  [[ ! "$target" =~ ^[0-9]+$ ]] && target=10
 
   # Check if agent requested stop
   if [ -n "$status_file" ] && [ -f "$status_file" ]; then

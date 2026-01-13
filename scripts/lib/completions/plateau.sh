@@ -27,13 +27,24 @@ check_completion() {
   local reason=$(get_status_reason "$status_file")
 
   if [ "$decision" = "stop" ]; then
-    # Count consecutive "stop" decisions from history
+    # Get current stage name for filtering (multi-stage pipeline support)
+    local current_stage_idx=$(jq -r '.current_stage // 0' "$state_file" 2>/dev/null)
+    local current_stage_name=$(jq -r ".stages[$current_stage_idx].name // \"\"" "$state_file" 2>/dev/null)
+
+    # Count consecutive "stop" decisions from history (filtered by current stage)
     local history=$(get_history "$state_file")
     local consecutive=1
 
-    # Check previous iterations for consecutive stops
+    # Check previous iterations for consecutive stops (same stage only)
     local history_len=$(echo "$history" | jq 'length')
     for ((i = history_len - 1; i >= 0 && consecutive < consensus_needed; i--)); do
+      local entry_stage=$(echo "$history" | jq -r ".[$i].stage // \"\"")
+
+      # Skip entries from different stages (for multi-stage pipelines)
+      if [ -n "$current_stage_name" ] && [ -n "$entry_stage" ] && [ "$entry_stage" != "$current_stage_name" ]; then
+        continue
+      fi
+
       local prev_decision=$(echo "$history" | jq -r ".[$i].decision // \"continue\"")
       if [ "$prev_decision" = "stop" ]; then
         ((consecutive++))

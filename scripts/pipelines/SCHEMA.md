@@ -42,21 +42,53 @@ Use these in your prompts - they're resolved at runtime:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
+| `${CTX}` | Path to context.json with full context | `.claude/pipeline-runs/.../context.json` |
+| `${STATUS}` | Path to write status.json | `.claude/pipeline-runs/.../status.json` |
 | `${SESSION}` | Pipeline session name | `review-20250110-1423` |
+| `${ITERATION}` | Current iteration (1-based) | `1`, `2`, `3` |
 | `${INDEX}` | Current run index (0-based) | `0`, `1`, `2` |
 | `${PERSPECTIVE}` | Current item from perspectives array | `security` |
 | `${OUTPUT}` | Path to write this run's output | `.claude/pipeline-runs/.../run-0.md` |
 | `${PROGRESS}` | Path to accumulating progress file | `.claude/pipeline-runs/.../progress.md` |
-| `${INPUTS.stage-name}` | All outputs from named stage | File contents |
-| `${INPUTS}` | Outputs from previous stage | File contents |
 
 **Stage-style variables** (for compatibility when using `stage:`):
 
 | Variable | Maps To |
 |----------|---------|
 | `${SESSION_NAME}` | `${SESSION}` |
-| `${ITERATION}` | `${INDEX}` + 1 (1-based) |
 | `${PROGRESS_FILE}` | `${PROGRESS}` |
+
+## Inter-Stage Inputs
+
+To pass outputs from one stage to another, use the `inputs` config:
+
+```yaml
+stages:
+  - name: improve-plan
+    stage: improve-plan
+    runs: 5
+
+  - name: refine-beads
+    stage: refine-beads
+    runs: 5
+    inputs:
+      from: improve-plan    # Name of source stage
+      select: latest        # "latest" (default) or "all"
+```
+
+The inputs are available in `context.json`. Agents read them via:
+
+```bash
+# Read previous stage outputs
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} | while read file; do
+  cat "$file"
+done
+
+# Read previous iterations of current stage
+jq -r '.inputs.from_previous_iterations[]' ${CTX} | while read file; do
+  cat "$file"
+done
+```
 
 ## Completion Strategies
 
@@ -121,9 +153,14 @@ stages:
 
   - name: synthesize
     runs: 1
+    inputs:
+      from: review
+      select: all
     prompt: |
-      Combine all reviews:
-      ${INPUTS.review}
+      Combine all reviews from previous stage.
+
+      Read review outputs:
+      jq -r '.inputs.from_stage.review[]' ${CTX} | xargs cat
 
       Write synthesis to ${OUTPUT}
 ```

@@ -207,17 +207,26 @@ model: gpt-5.2-codex  # provider-specific model
 
 ### Multi-Stage Pipelines
 
-Chain stages together. Each stage's outputs become `${INPUTS}` for the next:
+Chain stages together. Use `inputs:` to pass outputs between stages:
 ```yaml
 name: full-refine
 description: Refine plan then beads
 stages:
   - name: plan
-    loop: improve-plan
+    stage: improve-plan
     runs: 5
   - name: beads
-    loop: refine-beads
+    stage: refine-beads
     runs: 5
+    inputs:
+      from: plan        # Reference previous stage by name
+      select: latest    # "latest" (default) or "all"
+```
+
+Agents access inputs via `context.json`:
+```bash
+# Read previous stage outputs
+jq -r '.inputs.from_stage | to_entries[] | .value[]' ${CTX} | xargs cat
 ```
 
 Available pipelines: `quick-refine.yaml` (3+3), `full-refine.yaml` (5+5), `deep-refine.yaml` (8+8)
@@ -242,7 +251,6 @@ Available pipelines: `quick-refine.yaml` (3+3), `full-refine.yaml` (5+5), `deep-
 | `${INDEX}` | 0-based iteration index |
 | `${PROGRESS_FILE}` | Same as `${PROGRESS}` |
 | `${OUTPUT}` | Path to write output (multi-stage pipelines) |
-| `${INPUTS}` | Previous stage outputs (multi-stage pipelines) |
 
 ## Creating a New Stage
 

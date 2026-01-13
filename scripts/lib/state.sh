@@ -41,13 +41,21 @@ update_iteration() {
   local state_file=$1
   local iteration=$2
   local output_vars=${3:-"{}"}  # JSON object
+  local stage_name=${4:-""}     # Optional: stage name for multi-stage pipelines
 
   local timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+
+  # Include stage in history entry if provided (for multi-stage plateau filtering)
+  local stage_arg=""
+  if [ -n "$stage_name" ]; then
+    stage_arg="--arg stage \"$stage_name\""
+  fi
 
   if ! jq --argjson iter "$iteration" \
      --argjson vars "$output_vars" \
      --arg ts "$timestamp" \
-     '.iteration = $iter | .history += [{"iteration": $iter, "timestamp": $ts} + $vars]' \
+     --arg stage "$stage_name" \
+     '.iteration = $iter | .history += [{"iteration": $iter, "timestamp": $ts, "stage": $stage} + $vars]' \
      "$state_file" > "$state_file.tmp"; then
     echo "Error: Failed to update iteration in state file" >&2
     rm -f "$state_file.tmp"
