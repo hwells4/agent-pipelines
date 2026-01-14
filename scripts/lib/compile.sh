@@ -537,9 +537,9 @@ compile_pipeline_file() {
   local pipeline_commands
   pipeline_commands=$(echo "$pipeline_json" | jq -c '.commands // {}')
   local default_provider
-  default_provider=$(json_get "$pipeline_json" ".defaults.provider" "claude")
+  default_provider=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$pipeline_json" ".defaults.provider" "claude")}}
   local default_model
-  default_model=$(json_get "$pipeline_json" ".defaults.model" "")
+  default_model=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$pipeline_json" ".defaults.model" "")}}
   if [ -z "$default_model" ]; then
     default_model=$(get_default_model "$default_provider")
   fi

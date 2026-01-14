@@ -301,6 +301,89 @@ resolve_initial_inputs() {
 }
 
 #-------------------------------------------------------------------------------
+# Plan.json Helpers
+#-------------------------------------------------------------------------------
+
+validate_plan_file() {
+  local plan_file=$1
+
+  [ -f "$plan_file" ] || return 1
+
+  jq -e '
+    .version == 1
+    and (.nodes | type == "array")
+    and (.dependencies.jq == true)
+    and (.dependencies.yq == true)
+    and (.session.name | length > 0)
+    and (.nodes | all(.path != null and .id != null and .kind != null))
+  ' "$plan_file" >/dev/null 2>&1
+}
+
+plan_needs_recompile() {
+  local pipeline_file=$1
+  local plan_file=$2
+  local force_recompile=${3:-""}
+
+  if [ "$force_recompile" = "--recompile" ]; then
+    return 0
+  fi
+
+  if [ ! -f "$plan_file" ]; then
+    return 0
+  fi
+
+  if [ -f "$pipeline_file" ] && [ "$pipeline_file" -nt "$plan_file" ]; then
+    return 0
+  fi
+
+  if ! validate_plan_file "$plan_file"; then
+    return 0
+  fi
+
+  return 1
+}
+
+compile_plan_file() {
+  local pipeline_file=$1
+  local session_name=$2
+  local run_dir=$3
+  local compile_script="$LIB_DIR/compile.sh"
+
+  if [ ! -f "$compile_script" ]; then
+    echo "Error: compile.sh not found at $compile_script" >&2
+    return 1
+  fi
+
+  bash "$compile_script" "$pipeline_file" "$session_name" "$run_dir"
+}
+
+resolve_plan_prompt() {
+  local prompt_inline=$1
+  local prompt_path=$2
+
+  if [ -n "$prompt_inline" ] && [ "$prompt_inline" != "null" ]; then
+    echo "$prompt_inline"
+    return 0
+  fi
+
+  if [ -z "$prompt_path" ] || [ "$prompt_path" = "null" ]; then
+    return 1
+  fi
+
+  local resolved="$prompt_path"
+  if [[ "$resolved" != /* ]]; then
+    resolved="$PROJECT_ROOT/$resolved"
+  fi
+
+  if [ ! -f "$resolved" ]; then
+    echo "Error: Prompt file not found: $resolved" >&2
+    return 1
+  fi
+
+  cat "$resolved"
+}
+
+#-------------------------------------------------------------------------------
 # Pipeline Mode
 #-------------------------------------------------------------------------------
 
@@ -326,29 +409,47 @@ run_pipeline() {
     fi
   fi
 
-  # Validate pipeline before execution (Bug fix: loop-agents-otc)
-  if ! validate_pipeline_file "$pipeline_file" "--quiet"; then
-    local pipeline_name_for_error
-    pipeline_name_for_error=$(basename "$pipeline_file" .yaml)
-    echo "Error: Pipeline validation failed. Run './scripts/run.sh lint pipeline $pipeline_name_for_error' for details." >&2
-    return 1
+  local session=${session_override:-""}
+  if [ -z "$session" ]; then
+    local fallback_name
+    fallback_name=$(basename "$pipeline_file" .yaml)
+    session="${fallback_name}-$(date +%Y%m%d-%H%M%S)"
   fi
-
-  # Parse pipeline
-  local pipeline_json=$(yaml_to_json "$pipeline_file")
-  local pipeline_name=$(json_get "$pipeline_json" ".name" "pipeline")
-  local session=${session_override:-"${pipeline_name}-$(date +%Y%m%d-%H%M%S)"}
 
   # Set up run directory
   local run_dir="$PROJECT_ROOT/.claude/pipeline-runs/$session"
   mkdir -p "$run_dir"
   cp "$pipeline_file" "$run_dir/pipeline.yaml"
 
+  local plan_file="$run_dir/plan.json"
+  local recompile_flag="$RECOMPILE_FLAG"
+  if [ -n "${PIPELINE_CLI_PROVIDER:-}" ] || [ -n "${PIPELINE_CLI_MODEL:-}" ]; then
+    recompile_flag="--recompile"
+  fi
+
+  if plan_needs_recompile "$pipeline_file" "$plan_file" "$recompile_flag"; then
+    echo "Compiling plan.json..."
+    if ! compile_plan_file "$pipeline_file" "$session" "$run_dir"; then
+      return 1
+    fi
+  fi
+
+  if ! validate_plan_file "$plan_file"; then
+    echo "Error: plan.json missing or invalid. Recompile required." >&2
+    return 1
+  fi
+
+  local plan_json
+  plan_json=$(cat "$plan_file")
+  local pipeline_name=$(json_get "$plan_json" ".pipeline.name" "pipeline")
+  local pipeline_desc=$(json_get "$plan_json" ".pipeline.description" "")
+  local pipeline_inputs=$(echo "$plan_json" | jq -c '.pipeline.inputs // []')
+  local pipeline_commands=$(echo "$plan_json" | jq -c '.pipeline.commands // {}')
+
   # Resolve and store initial inputs (v4: pipeline-level inputs)
-  local initial_inputs=$(json_get "$pipeline_json" ".inputs" "[]")
-  # Also check for CLI-provided inputs (via PIPELINE_CLI_INPUTS env var)
+  local initial_inputs="$pipeline_inputs"
   if [ -n "$PIPELINE_CLI_INPUTS" ]; then
-    # Merge CLI inputs with YAML inputs (CLI takes precedence if both exist)
+    # Merge CLI inputs with plan inputs (CLI takes precedence if both exist)
     if [ "$initial_inputs" = "[]" ] || [ "$initial_inputs" = "null" ]; then
       initial_inputs="$PIPELINE_CLI_INPUTS"
     else
@@ -368,50 +469,58 @@ run_pipeline() {
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
 
-  # Get defaults (CLI > env > pipeline config > built-in)
-  # Resolve provider first (needed for model default)
-  local default_provider=${PIPELINE_CLI_PROVIDER:-${CLAUDE_PIPELINE_PROVIDER:-$(json_get "$pipeline_json" ".defaults.provider" "claude")}}
-  local provider_default_model=$(get_default_model "$default_provider")
-  local default_model=${PIPELINE_CLI_MODEL:-${CLAUDE_PIPELINE_MODEL:-$(json_get "$pipeline_json" ".defaults.model" "$provider_default_model")}}
-
   # Execute each stage
-  local stage_count=$(json_array_len "$pipeline_json" ".stages")
+  local stage_count
+  stage_count=$(echo "$plan_json" | jq -r '.nodes | length')
 
   for stage_idx in $(seq 0 $((stage_count - 1))); do
+    local node_json
+    node_json=$(echo "$plan_json" | jq -c ".nodes[$stage_idx]")
+    local node_kind
+    node_kind=$(echo "$node_json" | jq -r '.kind // "stage"')
+    local stage_name
+    stage_name=$(echo "$node_json" | jq -r '.id // empty')
+    [ -z "$stage_name" ] && stage_name="stage-$stage_idx"
+
     # Skip completed stages during resume
     if [ "$stage_idx" -lt "$start_stage" ]; then
       if is_stage_complete "$state_file" "$stage_idx"; then
-        local skipped_name=$(json_get "$pipeline_json" ".stages[$stage_idx].name")
-        echo "  ⏭ Skipping completed stage: $skipped_name"
+        echo "  ⏭ Skipping completed stage: $stage_name"
         continue
       fi
     fi
 
-    local stage_name=$(json_get "$pipeline_json" ".stages[$stage_idx].name")
-    local stage_runs=$(json_get "$pipeline_json" ".stages[$stage_idx].runs" "1")
-    local stage_model=$(json_get "$pipeline_json" ".stages[$stage_idx].model" "$default_model")
-    local stage_provider=$(json_get "$pipeline_json" ".stages[$stage_idx].provider" "$default_provider")
-    # Support both "stage" (new) and "loop" (legacy) keywords
-    local stage_type=$(json_get "$pipeline_json" ".stages[$stage_idx].stage" "")
-    [ -z "$stage_type" ] && stage_type=$(json_get "$pipeline_json" ".stages[$stage_idx].loop" "")
-    local stage_prompt=$(json_get "$pipeline_json" ".stages[$stage_idx].prompt" "")
-    local stage_completion=$(json_get "$pipeline_json" ".stages[$stage_idx].completion" "")
-    local stage_desc=$(json_get "$pipeline_json" ".stages[$stage_idx].description" "")
-    # v3: Get inputs configuration
-    local stage_inputs_from=$(json_get "$pipeline_json" ".stages[$stage_idx].inputs.from" "")
-    local stage_inputs_select=$(json_get "$pipeline_json" ".stages[$stage_idx].inputs.select" "latest")
-    # v4: Get context injection (CLI > pipeline stage > stage.yaml)
-    local stage_context=${PIPELINE_CLI_CONTEXT:-$(json_get "$pipeline_json" ".stages[$stage_idx].context" "")}
-
-    # Check if this is a parallel block
-    local is_parallel=$(echo "$pipeline_json" | jq -e ".stages[$stage_idx].parallel" 2>/dev/null)
-    if [ -n "$is_parallel" ] && [ "$is_parallel" != "null" ]; then
-      # Extract full stage config for parallel block
-      local block_config=$(echo "$pipeline_json" | jq ".stages[$stage_idx]")
-      local defaults_json=$(jq -n \
-        --arg provider "$default_provider" \
-        --arg model "$default_model" \
-        '{provider: $provider, model: $model}')
+    if [ "$node_kind" = "parallel" ]; then
+      local block_config
+      block_config=$(echo "$node_json" | jq -c '
+        {
+          name: .id,
+          description: (.description // ""),
+          inputs: (.inputs // {}),
+          parallel: (
+            {
+              providers: (.providers // []),
+              stages: [
+                .stages[] | {
+                  name: .id,
+                  stage: (.ref // empty),
+                  model: (.model // empty),
+                  prompt: (.prompt // empty),
+                  prompt_path: (.prompt_path // empty),
+                  context: (.context // empty),
+                  output_path: (.output_path // empty),
+                  delay: (.delay // empty),
+                  termination: (.termination // {}),
+                  inputs: (.inputs // {})
+                }
+              ]
+            }
+            + (if .failure_mode? then {failure_mode: .failure_mode} else {} end)
+          )
+        }
+      ')
+      local defaults_json
+      defaults_json=$(jq -n '{}')
       local block_needs_bd=""
       block_needs_bd=$(echo "$block_config" | jq -r '[.parallel.stages[]?.termination.type // empty] | any(. == "queue")')
       if [ "$block_needs_bd" = "true" ]; then
@@ -428,6 +537,66 @@ run_pipeline() {
       update_stage "$state_file" "$stage_idx" "$stage_name" "complete"
       echo ""
       continue  # Skip to next stage
+    fi
+
+    local stage_type
+    stage_type=$(echo "$node_json" | jq -r '.ref // empty')
+    local stage_desc
+    stage_desc=$(echo "$node_json" | jq -r '.description // empty')
+    local stage_context
+    stage_context=$(echo "$node_json" | jq -r '.context // empty')
+    if [ -n "${PIPELINE_CLI_CONTEXT:-}" ]; then
+      stage_context="$PIPELINE_CLI_CONTEXT"
+    fi
+    local stage_prompt_inline
+    stage_prompt_inline=$(echo "$node_json" | jq -r '.prompt // empty')
+    local stage_prompt_path
+    stage_prompt_path=$(echo "$node_json" | jq -r '.prompt_path // empty')
+    local stage_provider
+    stage_provider=$(echo "$node_json" | jq -r '.provider.type // empty')
+    local stage_model
+    stage_model=$(echo "$node_json" | jq -r '.provider.model // empty')
+    local term_type
+    term_type=$(echo "$node_json" | jq -r '.termination.type // "fixed"')
+    local stage_runs
+    stage_runs=$(echo "$node_json" | jq -r '.termination.max // .termination.iterations // 1')
+    local min_iters
+    min_iters=$(echo "$node_json" | jq -r '.termination.min_iterations // 1')
+    local consensus
+    consensus=$(echo "$node_json" | jq -r '.termination.consensus // 2')
+    local stage_inputs
+    stage_inputs=$(echo "$node_json" | jq -c '.inputs // {}')
+
+    [[ ! "$stage_runs" =~ ^[0-9]+$ ]] && stage_runs=1
+    [[ ! "$min_iters" =~ ^[0-9]+$ ]] && min_iters=1
+    [[ ! "$consensus" =~ ^[0-9]+$ ]] && consensus=2
+
+    local stage_prompt=""
+    if ! stage_prompt=$(resolve_plan_prompt "$stage_prompt_inline" "$stage_prompt_path"); then
+      if [ -n "$stage_type" ]; then
+        load_stage "$stage_type" || exit 1
+        stage_prompt="$STAGE_PROMPT"
+      else
+        echo "Error: No prompt found for stage '$stage_name'" >&2
+        return 1
+      fi
+    fi
+
+    local stage_completion=""
+    case "$term_type" in
+      queue) stage_completion="beads-empty" ;;
+      judgment) stage_completion="plateau" ;;
+      fixed) stage_completion="fixed-n" ;;
+      *) stage_completion="$term_type" ;;
+    esac
+
+    if [ "$stage_completion" = "beads-empty" ]; then
+      check_deps --require-bd || return 1
+    fi
+
+    [ -z "$stage_provider" ] && stage_provider="claude"
+    if [ -z "$stage_model" ]; then
+      stage_model=$(get_default_model "$stage_provider")
     fi
 
     # Create stage output directory (v3 format: stage-00-name)
@@ -451,34 +620,22 @@ run_pipeline() {
       reset_iteration_counters "$state_file"
     fi
 
-    # If using a stage type, load its config
-    if [ -n "$stage_type" ]; then
-      load_stage "$stage_type" || exit 1
-      [ -z "$stage_prompt" ] && stage_prompt="$STAGE_PROMPT"
-      [ -z "$stage_completion" ] && stage_completion="$STAGE_COMPLETION"
-      [ -z "$stage_context" ] && stage_context="$STAGE_CONTEXT"
-    else
-      # Bug fix: loop-agents-qnx - Inline prompt stages default to fixed-n termination
-      [ -z "$stage_completion" ] && stage_completion="fixed-n"
-    fi
-    if [ "$stage_completion" = "beads-empty" ]; then
-      check_deps --require-bd || return 1
-    fi
-
     # Check provider is available (once per stage, not per iteration)
     check_provider "$stage_provider" || return 1
 
     # Initialize progress for this stage
     local progress_file=$(init_stage_progress "$stage_dir")
-
-    # Get perspectives array
-    local perspectives=$(json_get "$pipeline_json" ".stages[$stage_idx].perspectives" "")
+    local perspectives=""
 
     # Source completion strategy if specified
     if [ -n "$stage_completion" ]; then
       local completion_script="$LIB_DIR/completions/${stage_completion}.sh"
       [ -f "$completion_script" ] && source "$completion_script"
     fi
+
+    export MIN_ITERATIONS="$min_iters"
+    export CONSENSUS="$consensus"
+    export MAX_ITERATIONS="$stage_runs"
 
     # Determine starting iteration for this stage
     local stage_start_iter=0
@@ -501,9 +658,9 @@ run_pipeline() {
         --argjson index "$stage_idx" \
         --arg loop "$stage_type" \
         --argjson max_iterations "$stage_runs" \
-        --arg inputs_from "$stage_inputs_from" \
-        --arg inputs_select "$stage_inputs_select" \
-        '{id: $id, name: $name, index: $index, loop: $loop, max_iterations: $max_iterations, inputs: {from: $inputs_from, select: $inputs_select}}')
+        --argjson inputs "$stage_inputs" \
+        --argjson commands "$pipeline_commands" \
+        '{id: $id, name: $name, index: $index, loop: $loop, max_iterations: $max_iterations, inputs: $inputs, commands: $commands}')
 
       # Generate context.json for this iteration (v3)
       local context_file=$(generate_context "$session" "$iteration" "$stage_config_json" "$run_dir")
@@ -648,11 +805,13 @@ run_pipeline() {
 # Parse flags from remaining args
 FORCE_FLAG=""
 RESUME_FLAG=""
+RECOMPILE_FLAG=""
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE_FLAG="--force" ;;
     --resume) RESUME_FLAG="--resume" ;;
+    --recompile) RECOMPILE_FLAG="--recompile" ;;
     *) ARGS+=("$arg") ;;
   esac
 done
@@ -720,7 +879,7 @@ case "$MODE" in
       SESSION=${2:-"$STAGE_TYPE"}
       MAX_ITERATIONS=${3:-25}
     else
-      PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force] [--resume]"}
+      PIPELINE_FILE=${1:?"Usage: engine.sh pipeline <pipeline.yaml> [session] [--force] [--resume] [--recompile]"}
       SESSION=$2
       # For pipelines, derive session name if not provided
       if [ -z "$SESSION" ]; then
@@ -818,6 +977,7 @@ case "$MODE" in
     echo "Options:"
     echo "  --force    Override existing session lock"
     echo "  --resume   Resume a failed/crashed session"
+    echo "  --recompile  Regenerate plan.json before running"
     echo ""
     echo "All sessions run in: .claude/pipeline-runs/{session}/"
     exit 1

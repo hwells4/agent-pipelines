@@ -41,6 +41,9 @@ run_parallel_provider() {
     local stage_name=$(echo "$stage_config" | jq -r '.name')
     local stage_type=$(echo "$stage_config" | jq -r '.stage // empty')
     local stage_model=$(echo "$stage_config" | jq -r ".model // \"$default_model\"")
+    local stage_prompt_inline=$(echo "$stage_config" | jq -r '.prompt // empty')
+    local stage_prompt_path=$(echo "$stage_config" | jq -r '.prompt_path // empty')
+    local stage_context=$(echo "$stage_config" | jq -r '.context // empty')
 
     # Get termination config
     local term_type=$(echo "$stage_config" | jq -r '.termination.type // "fixed"')
@@ -52,11 +55,29 @@ run_parallel_provider() {
     local stage_dir="$provider_dir/stage-$(printf '%02d' $stage_idx)-$stage_name"
     mkdir -p "$stage_dir"
 
-    # Load stage definition if specified
+    # Load prompt (plan-provided overrides stage.yaml)
     local stage_prompt=""
-    if [ -n "$stage_type" ] && type load_stage &>/dev/null; then
+    if [ -n "$stage_prompt_inline" ] && [ "$stage_prompt_inline" != "null" ]; then
+      stage_prompt="$stage_prompt_inline"
+    elif [ -n "$stage_prompt_path" ] && [ "$stage_prompt_path" != "null" ]; then
+      local resolved_prompt_path="$stage_prompt_path"
+      if [[ "$resolved_prompt_path" != /* ]]; then
+        resolved_prompt_path="$PROJECT_ROOT/$resolved_prompt_path"
+      fi
+      if [ -f "$resolved_prompt_path" ]; then
+        stage_prompt=$(cat "$resolved_prompt_path")
+      else
+        echo "Error: Prompt file not found: $resolved_prompt_path" >&2
+        return 1
+      fi
+    elif [ -n "$stage_type" ] && type load_stage &>/dev/null; then
       load_stage "$stage_type" || return 1
       stage_prompt="$STAGE_PROMPT"
+    fi
+
+    if [ -z "$stage_prompt" ]; then
+      echo "Error: No prompt found for stage '$stage_name'" >&2
+      return 1
     fi
 
     # Initialize progress for this stage
@@ -123,7 +144,8 @@ run_parallel_provider() {
         --arg progress "$progress_file" \
         --arg context_file "$context_file" \
         --arg status_file "$status_file" \
-        '{session: $session, iteration: $iteration, index: $index, progress: $progress, context_file: $context_file, status_file: $status_file}')
+        --arg context "$stage_context" \
+        '{session: $session, iteration: $iteration, index: $index, progress: $progress, context_file: $context_file, status_file: $status_file, context: $context}')
 
       # Resolve prompt
       local resolved_prompt=""

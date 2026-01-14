@@ -96,6 +96,7 @@ show_help() {
   echo "  --foreground                    Run in foreground instead of tmux (default: tmux)"
   echo "  --force                         Override existing session lock"
   echo "  --resume                        Resume a crashed/failed session"
+  echo "  --recompile                     Regenerate plan.json before running"
   echo "  --input <file>                  Initial input file for pipeline (can use multiple times)"
   echo "  --provider=<name>               Override provider (claude, codex)"
   echo "  --model=<name>                  Override model (opus, o3, etc.)"
