@@ -42,6 +42,7 @@ Skills are Claude Code extensions in `skills/`. Each provides specialized workfl
 
 | Skill | Invocation | Purpose |
 |-------|------------|---------|
+| **start** | `/start` | Universal pipeline launcher with discovery |
 | **sessions** | `/sessions` | Start/manage pipelines in tmux |
 | **plan-refinery** | `/plan-refinery` | Iterative planning with Opus subagents |
 | **create-prd** | `/agent-pipelines:create-prd` | Generate PRDs through adaptive questioning |
@@ -63,6 +64,7 @@ Commands in `commands/` provide user-facing interfaces.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
+| `/start` | `/start`, `/start ralph`, `/start refine.yaml` | Universal pipeline launcher with discovery |
 | `/sessions` | `/sessions`, `/sessions list`, `/sessions start` | Session management: start, list, monitor, kill, cleanup |
 | `/ralph` | `/ralph` | Quick-start work pipelines (interactive) |
 | `/refine` | `/refine`, `/refine quick`, `/refine deep` | Run refinement pipelines |
