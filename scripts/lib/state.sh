@@ -28,11 +28,373 @@ init_state() {
         iteration_completed: 0,
         iteration_started: null,
         stages: [],
-        history: []
+        history: [],
+        event_offset: 0
       }' > "$state_file"
   fi
 
   echo "$state_file"
+}
+
+#-------------------------------------------------------------------------------
+# Event Snapshot Reconciliation
+#-------------------------------------------------------------------------------
+
+SNAPSHOT_STALE="false"
+SNAPSHOT_EVENT_OFFSET="0"
+SNAPSHOT_EVENT_COUNT="0"
+
+_state_warn_invalid_event_line() {
+  local events_file=$1
+  local invalid_idx=$2
+  local total_lines=$3
+
+  if [ "$invalid_idx" -eq "$total_lines" ]; then
+    echo "Warning: Skipping truncated final event line in $events_file" >&2
+  else
+    echo "Warning: Skipping invalid event line in $events_file" >&2
+  fi
+}
+
+_state_read_events_file() {
+  local events_file=$1
+
+  if [ ! -f "$events_file" ] || [ ! -s "$events_file" ]; then
+    echo "[]"
+    return 0
+  fi
+
+  local tmp_file
+  tmp_file=$(mktemp)
+  local total_lines=0
+  local invalid_idx=0
+  local invalid_count=0
+  local valid_count=0
+  local line=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    total_lines=$((total_lines + 1))
+    if echo "$line" | jq -e '.' >/dev/null 2>&1; then
+      printf '%s\n' "$line" >> "$tmp_file"
+      valid_count=$((valid_count + 1))
+    else
+      invalid_idx=$total_lines
+      invalid_count=$((invalid_count + 1))
+    fi
+  done < "$events_file"
+
+  if [ "$invalid_count" -gt 0 ]; then
+    _state_warn_invalid_event_line "$events_file" "$invalid_idx" "$total_lines"
+  fi
+
+  if [ "$valid_count" -eq 0 ]; then
+    echo "[]"
+  else
+    jq -s '.' "$tmp_file"
+  fi
+
+  rm -f "$tmp_file"
+}
+
+_state_count_events_file() {
+  local events_file=$1
+
+  if [ ! -f "$events_file" ] || [ ! -s "$events_file" ]; then
+    echo "0"
+    return 0
+  fi
+
+  local total_lines=0
+  local invalid_idx=0
+  local invalid_count=0
+  local valid_count=0
+  local line=""
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    total_lines=$((total_lines + 1))
+    if echo "$line" | jq -e '.' >/dev/null 2>&1; then
+      valid_count=$((valid_count + 1))
+    else
+      invalid_idx=$total_lines
+      invalid_count=$((invalid_count + 1))
+    fi
+  done < "$events_file"
+
+  if [ "$invalid_count" -gt 0 ]; then
+    _state_warn_invalid_event_line "$events_file" "$invalid_idx" "$total_lines"
+  fi
+
+  echo "$valid_count"
+}
+
+_state_default_snapshot() {
+  local session=${1:-""}
+  local type=${2:-""}
+  local started_at=${3:-""}
+
+  if [ -z "$started_at" ]; then
+    started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)
+  fi
+
+  jq -n \
+    --arg session "$session" \
+    --arg type "$type" \
+    --arg started "$started_at" \
+    '{
+      session: $session,
+      type: $type,
+      started_at: $started,
+      status: "running",
+      current_stage: 0,
+      iteration: 0,
+      iteration_completed: 0,
+      iteration_started: null,
+      stages: [],
+      history: [],
+      event_offset: 0
+    }'
+}
+
+_state_cursor_stage() {
+  local node_path=$1
+
+  if [ -z "$node_path" ]; then
+    return 0
+  fi
+
+  local head="${node_path%%/*}"
+  if [[ "$head" =~ ^[0-9]+$ ]]; then
+    echo "$head"
+  fi
+}
+
+# Write snapshot with event_offset
+# Usage: write_snapshot "$state_file" "$event_offset" ["$state_json"]
+write_snapshot() {
+  local state_file=$1
+  local event_offset=${2:-""}
+  local state_json=${3:-""}
+
+  if [ -z "$event_offset" ]; then
+    if [ -n "$state_json" ]; then
+      event_offset=$(echo "$state_json" | jq -r '.event_offset // 0' 2>/dev/null || echo "0")
+    elif [ -f "$state_file" ]; then
+      event_offset=$(jq -r '.event_offset // 0' "$state_file" 2>/dev/null || echo "0")
+    else
+      event_offset="0"
+    fi
+  fi
+
+  if ! [[ "$event_offset" =~ ^[0-9]+$ ]]; then
+    event_offset="0"
+  fi
+
+  mkdir -p "$(dirname "$state_file")"
+
+  if [ -n "$state_json" ]; then
+    if ! echo "$state_json" | jq --argjson offset "$event_offset" \
+      '.event_offset = $offset' > "$state_file.tmp"; then
+      echo "Error: Failed to write snapshot state" >&2
+      rm -f "$state_file.tmp"
+      return 1
+    fi
+  elif [ -f "$state_file" ]; then
+    if ! jq --argjson offset "$event_offset" \
+      '.event_offset = $offset' "$state_file" > "$state_file.tmp"; then
+      echo "Error: Failed to update snapshot state" >&2
+      rm -f "$state_file.tmp"
+      return 1
+    fi
+  else
+    if ! jq -n --argjson offset "$event_offset" \
+      '{event_offset: $offset}' > "$state_file.tmp"; then
+      echo "Error: Failed to create snapshot state" >&2
+      rm -f "$state_file.tmp"
+      return 1
+    fi
+  fi
+
+  mv "$state_file.tmp" "$state_file"
+}
+
+# Load cached snapshot and check if it is stale vs events.jsonl
+# Usage: load_snapshot "$state_file" ["$events_file"]
+# Echoes snapshot JSON (with event_offset set)
+# Sets: SNAPSHOT_STALE, SNAPSHOT_EVENT_OFFSET, SNAPSHOT_EVENT_COUNT
+load_snapshot() {
+  local state_file=$1
+  local events_file=${2:-"$(dirname "$state_file")/events.jsonl"}
+
+  SNAPSHOT_STALE="false"
+  SNAPSHOT_EVENT_OFFSET="0"
+  SNAPSHOT_EVENT_COUNT="0"
+
+  local state_json="{}"
+  if [ -f "$state_file" ]; then
+    state_json=$(cat "$state_file")
+  fi
+
+  local event_offset
+  event_offset=$(echo "$state_json" | jq -r '.event_offset // 0' 2>/dev/null || echo "0")
+  if ! [[ "$event_offset" =~ ^[0-9]+$ ]]; then
+    event_offset="0"
+  fi
+
+  state_json=$(echo "$state_json" | jq --argjson offset "$event_offset" \
+    '.event_offset = $offset' 2>/dev/null || echo '{"event_offset":0}')
+
+  local event_count="0"
+  if [ -f "$events_file" ] && [ -s "$events_file" ]; then
+    event_count=$(_state_count_events_file "$events_file")
+  fi
+  if ! [[ "$event_count" =~ ^[0-9]+$ ]]; then
+    event_count="0"
+  fi
+
+  if [ "$event_offset" -ne "$event_count" ]; then
+    SNAPSHOT_STALE="true"
+  fi
+
+  SNAPSHOT_EVENT_OFFSET="$event_offset"
+  SNAPSHOT_EVENT_COUNT="$event_count"
+
+  echo "$state_json"
+}
+
+# Reconcile snapshot with events.jsonl, replaying from event_offset
+# Usage: reconcile_with_events "$state_file" ["$events_file"] ["$session"] ["$type"]
+reconcile_with_events() {
+  local state_file=$1
+  local events_file=${2:-"$(dirname "$state_file")/events.jsonl"}
+  local session=${3:-""}
+  local type=${4:-""}
+
+  if [ ! -f "$events_file" ] || [ ! -s "$events_file" ]; then
+    return 0
+  fi
+
+  local state_json=""
+  if [ -f "$state_file" ]; then
+    state_json=$(cat "$state_file")
+  fi
+
+  local events_json
+  events_json=$(_state_read_events_file "$events_file")
+
+  local event_count
+  event_count=$(echo "$events_json" | jq -r 'length' 2>/dev/null || echo "0")
+  if ! [[ "$event_count" =~ ^[0-9]+$ ]]; then
+    event_count="0"
+  fi
+
+  local event_offset="0"
+  if [ -n "$state_json" ]; then
+    event_offset=$(echo "$state_json" | jq -r '.event_offset // 0' 2>/dev/null || echo "0")
+  fi
+  if ! [[ "$event_offset" =~ ^[0-9]+$ ]]; then
+    event_offset="0"
+  fi
+  if [ "$event_offset" -gt "$event_count" ]; then
+    echo "Warning: state event_offset ($event_offset) exceeds events count ($event_count); rebuilding from scratch" >&2
+    event_offset="0"
+  fi
+
+  if [ -z "$state_json" ] || ! echo "$state_json" | jq -e '.' >/dev/null 2>&1; then
+    if [ -z "$session" ]; then
+      session=$(echo "$events_json" | jq -r '.[0].session // ""' 2>/dev/null)
+    fi
+    local started_at=""
+    started_at=$(echo "$events_json" | jq -r \
+      '[.[] | select(.type == "session_start")][0].ts // .[0].ts // empty' 2>/dev/null)
+    state_json=$(_state_default_snapshot "$session" "$type" "$started_at")
+  else
+    state_json=$(echo "$state_json" | jq --argjson offset "$event_offset" \
+      '.event_offset = $offset' 2>/dev/null || _state_default_snapshot "$session" "$type" "")
+  fi
+
+  local updates="[]"
+  if [ "$event_offset" -lt "$event_count" ]; then
+    updates=$(echo "$events_json" | jq -c --argjson offset "$event_offset" \
+      'if $offset >= length then [] else .[$offset:] end' 2>/dev/null || echo "[]")
+  fi
+
+  local updated_state="$state_json"
+  if [ "$updates" != "[]" ]; then
+    while IFS= read -r event; do
+      [ -z "$event" ] && continue
+      local type_name=""
+      local ts=""
+      local cursor="null"
+      local iteration=""
+      local node_path=""
+      local stage_idx=""
+
+      type_name=$(echo "$event" | jq -r '.type // ""' 2>/dev/null)
+      ts=$(echo "$event" | jq -r '.ts // empty' 2>/dev/null)
+      cursor=$(echo "$event" | jq -c '.cursor // null' 2>/dev/null)
+
+      if [ "$cursor" != "null" ] && [ -n "$cursor" ]; then
+        updated_state=$(echo "$updated_state" | jq --argjson cursor "$cursor" '.cursor = $cursor')
+
+        iteration=$(echo "$cursor" | jq -r '.iteration // empty' 2>/dev/null)
+        if [[ "$iteration" =~ ^[0-9]+$ ]]; then
+          updated_state=$(echo "$updated_state" | jq --argjson iter "$iteration" '.iteration = $iter')
+        fi
+
+        node_path=$(echo "$cursor" | jq -r '.node_path // empty' 2>/dev/null)
+        stage_idx=$(_state_cursor_stage "$node_path")
+        if [ -n "$stage_idx" ]; then
+          updated_state=$(echo "$updated_state" | jq --argjson stage "$stage_idx" '.current_stage = $stage')
+        fi
+      fi
+
+      case "$type_name" in
+        iteration_start)
+          if [[ "$iteration" =~ ^[0-9]+$ ]]; then
+            if [ -n "$ts" ]; then
+              updated_state=$(echo "$updated_state" | jq \
+                --argjson iter "$iteration" --arg ts "$ts" \
+                '.iteration = $iter | .iteration_started = $ts | .status = "running"')
+            else
+              updated_state=$(echo "$updated_state" | jq \
+                --argjson iter "$iteration" \
+                '.iteration = $iter | .iteration_started = null | .status = "running"')
+            fi
+          fi
+          ;;
+        iteration_complete)
+          if [[ "$iteration" =~ ^[0-9]+$ ]]; then
+            updated_state=$(echo "$updated_state" | jq \
+              --argjson iter "$iteration" \
+              '.iteration_completed = $iter | .iteration_started = null')
+          fi
+          ;;
+        session_complete)
+          if [ -n "$ts" ]; then
+            updated_state=$(echo "$updated_state" | jq \
+              --arg ts "$ts" \
+              '.status = "complete" | .completed_at = $ts')
+          else
+            updated_state=$(echo "$updated_state" | jq '.status = "complete"')
+          fi
+          ;;
+        error)
+          if [ -n "$ts" ]; then
+            updated_state=$(echo "$updated_state" | jq \
+              --arg ts "$ts" \
+              '.status = "failed" | .failed_at = $ts')
+          else
+            updated_state=$(echo "$updated_state" | jq '.status = "failed"')
+          fi
+          ;;
+      esac
+    done <<< "$(echo "$updates" | jq -c '.[]' 2>/dev/null)"
+  fi
+
+  updated_state=$(echo "$updated_state" | jq --argjson offset "$event_count" \
+    '.event_offset = $offset')
+
+  write_snapshot "$state_file" "$event_count" "$updated_state"
 }
 
 # Update iteration in state
