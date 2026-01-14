@@ -1,180 +1,105 @@
 # Agent Pipelines
 
-Run autonomous agent loops. Start one, close your laptop, check back tomorrow.
+n8n for [Ralph loops](https://ghuntley.com/ralph/). Agent Pipelines is a Claude Code plugin with a custom engine for managing and Ralph Loops
 
-```bash
-./scripts/run.sh ralph my-feature 25
-```
+It builds loops on top of a powerful engine, letting you 
 
-That's it. 25 iterations of Claude implementing tasks while you sleep.
-
-## The Problem
-
-Long-running agents degrade. By iteration 10, context is cluttered with debugging tangents, stale information, and accumulated confusion. The agent that started sharp is now stumbling.
-
-## The Solution
-
-**Fresh agent per iteration.** Each iteration spawns a new Claude instance that reads a progress file—accumulated learnings, patterns discovered, work completed. Iteration 50 is as sharp as iteration 1.
-
-**Two-agent consensus.** For judgment-based stages, one agent might think "we're done" prematurely. A second agent checks. Both must agree before stopping.
-
-**Multi-stage pipelines.** Chain stages together. Discovery feeds triage. Triage feeds refinement. Refinement feeds implementation.
+- **Build a stage and loop on anything.** Plan files, task queues, codebases, URL lists, CSVs. Whatever.
+- **Chain stages together.** Planning → task refinement → implementation.
+- **Mix providers across stages.** Use Claude for planning and Codex for implementation in the same workflow.
+- **Run providers in parallel.** Spin up Claude and Codex on the same stage, have each iterate separately, then synthesize the results.
+- **Stop when it makes sense.** Fixed count, two-agent consensus, or queue empty.
 
 ## Install
 
 ```bash
-git clone https://github.com/hwells4/agent-pipelines.git
-cd agent-pipelines
+claude plugin marketplace add https://github.com/hwells4/agent-pipelines
+claude plugin install agent-pipelines@dodo-digital
 ```
 
-**Dependencies:** `tmux`, `jq`, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), `bd` ([beads CLI](https://github.com/hwells4/beads))
+**Dependencies:** `tmux`, `jq`, `bd` ([beads CLI](https://github.com/hwells4/beads))
 
-## Quick Start
+## Example
 
-```bash
-# Run a Ralph loop - 25 iterations implementing tasks
-./scripts/run.sh ralph my-feature 25
-
-# Check on it
-tmux attach -t pipeline-my-feature
-
-# Or check status without attaching
-./scripts/run.sh status my-feature
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 1         │     │ Stage 2         │     │ Stage 3         │
+│ ─────────────── │     │ ─────────────── │     │ ─────────────── │
+│ Plan            │ ──▶ │ Refine Tasks    │ ──▶ │ Implement       │
+│ 5 iterations    │     │ 5 iterations    │     │ until empty     │
+│ judgment stop   │     │ judgment stop   │     │ queue stop      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-## Examples
+Each iteration spawns a fresh agent that reads a progress file containing accumulated learnings, patterns discovered, and work completed.
 
-### The Bug Hunt
+## How Stages Work
 
-Find bugs with fresh eyes, triage them elegantly, refine the fix tasks, then implement:
+A stage has three parts: a prompt template, a provider, and a termination strategy.
 
-```bash
-./scripts/run.sh pipeline bug-hunt.yaml overnight
-```
+**Prompt templates** are standardized prompts that receive context about the current session: what iteration you're on, where to read inputs, where to write outputs. You can inject additional context about the specific task, which makes stages reusable across different projects.
 
-What happens:
-1. **Discovery (8 iterations):** Fresh agents explore your codebase randomly. No agenda, just "what looks wrong here?"
-2. **Triage (2 iterations):** Agents pattern-match across discoveries, create elegant fix strategies
-3. **Refine (3 iterations):** Polish the tasks until two agents agree they're implementation-ready
-4. **Fix (25 iterations):** Execute the fixes, one task per iteration
+**Providers** are the AI agents that execute each iteration. Claude Code is the default, but you can also spin up Codex agents. The orchestrator is always Claude Code, but the workers can be either.
 
-That's 38 iterations of autonomous work. Start it Friday evening, review Monday morning.
+**Termination strategies** determine when a stage stops:
 
-### The Plan Refinery
+| Strategy | How it stops | Use it for |
+|----------|--------------|------------|
+| **Fixed** | After exactly N iterations | Traditional Ralph loops |
+| **Judgment** | When two agents independently agree they've plateaued | Planning, exploration, subjective quality |
+| **Queue** | When an external task queue is empty | Working through beads |
 
-Planning tokens are cheaper than implementation tokens. Before writing any code, refine your plan until it's bulletproof:
+Judgment requires two-agent consensus because one agent might think the plan is done while the second catches what's missing.
 
-```bash
-./scripts/run.sh pipeline refine.yaml my-plan
-```
+## Commands
 
-What happens:
-1. **Plan improvement (5 iterations):** Each agent reads your plan, finds gaps, adds detail
-2. **Task refinement (5 iterations):** Break the plan into executable tasks, refine until two agents agree
-
-The two-agent consensus prevents premature stopping. One agent thinks "this plan is good enough" but the next agent finds three missing edge cases.
-
-### The Work Queue
-
-Classic Ralph loop. Point it at a task queue and let it work:
-
-```bash
-# Create tasks first
-bd create --title="Add user authentication" --label=pipeline/auth
-bd create --title="Add password reset flow" --label=pipeline/auth
-bd create --title="Add session management" --label=pipeline/auth
-
-# Let it run
-./scripts/run.sh ralph auth 25
-```
-
-Each iteration: read progress, check queue, claim task, implement, commit, close task. Repeat until empty.
-
-## Built-in Stages
-
-| Stage | Terminates | Purpose |
-|-------|------------|---------|
-| `ralph` | Fixed N | The original—implement tasks from queue |
-| `improve-plan` | 2 agents agree | Refine a plan document |
-| `refine-tasks` | 2 agents agree | Split/merge/improve tasks |
-| `elegance` | 2 agents agree | Hunt unnecessary complexity |
-| `bug-discovery` | Fixed N | Explore codebase with fresh eyes |
-| `bug-triage` | 2 agents agree | Pattern-match bugs, design fixes |
-| `idea-wizard` | Fixed N | Brainstorm improvements |
-| `research-plan` | 2 agents agree | Web research to improve plans |
-| `test-scanner` | 2 agents agree | Find test coverage gaps |
+| Command | Purpose |
+|---------|---------|
+| `/sessions` | Start, list, monitor, and kill running pipelines |
+| `/sessions plan` | Turn a feature idea into a PRD and break it into tasks |
+| `/refine` | Run plan and task refinement until two agents agree it's ready |
+| `/ralph` | Work through a task queue until it's empty |
+| `/pipeline` | Create custom stages and pipelines |
 
 ## Built-in Pipelines
 
-| Pipeline | Stages |
-|----------|--------|
-| `refine` | improve-plan (5) → refine-tasks (5) |
-| `ideate` | idea-wizard (3) |
-| `bug-hunt` | bug-discovery (8) → bug-triage (2) → refine-tasks (3) → ralph (25) |
+| Pipeline | What it does |
+|----------|--------------|
+| `refine` | 5 plan iterations → 5 task iterations |
+| `ideate` | 3 brainstorming iterations |
+| `bug-hunt` | Discovery (8) → Triage (2) → Refine (3) → Fix (25) |
 
-## Creating Custom Stages
+## Built-in Stages
 
-```bash
-mkdir scripts/stages/my-stage
-```
+| Stage | Stops when | Purpose |
+|-------|------------|---------|
+| `ralph` | Fixed N | Work through tasks in a beads queue |
+| `improve-plan` | 2 agents agree | Read a plan, find gaps, add detail |
+| `refine-tasks` | 2 agents agree | Split large tasks, merge small ones, clarify scope |
+| `elegance` | 2 agents agree | Look for unnecessary complexity and remove it |
+| `bug-discovery` | Fixed N | Explore the codebase with no agenda, just looking for what's wrong |
+| `bug-triage` | 2 agents agree | Group related bugs, find patterns, design fixes |
+| `idea-wizard` | Fixed N | Brainstorm improvements and rank them |
+| `research-plan` | 2 agents agree | Search the web to fill gaps in a plan |
+| `test-scanner` | 2 agents agree | Find untested code paths and edge cases |
 
-**stage.yaml:**
-```yaml
-name: my-stage
-description: What this stage does
+## Parallel Execution
 
-termination:
-  type: judgment  # or 'fixed'
-  consensus: 2    # for judgment: consecutive stops needed
-  iterations: 5   # for fixed: max iterations
-```
+Sometimes you want multiple perspectives on the same problem. Parallel blocks let you spin up different providers (Codex with extra-high reasoning and Claude Opus, for example), have each iterate on a plan separately, then bring the results together in a final synthesis stage.
 
-**prompt.md:**
-```markdown
-Read context from: ${CTX}
-Progress file: ${PROGRESS}
-
-[Your instructions here]
-
-Write decision to: ${STATUS}
-```
-
-The agent reads `${CTX}` for session metadata, accumulates learnings in `${PROGRESS}`, and writes its continue/stop decision to `${STATUS}`.
-
-## Session Management
-
-```bash
-# List running sessions
-./scripts/run.sh
-
-# Check specific session
-./scripts/run.sh status my-feature
-
-# Resume a crashed session
-./scripts/run.sh ralph my-feature 25 --resume
-
-# Force start (override lock)
-./scripts/run.sh ralph my-feature 25 --force
-
-# Attach to watch live
-tmux attach -t pipeline-my-feature
-```
+Each provider runs in isolation with its own progress file, so they don't influence each other mid-loop. The orchestrator waits for all providers to finish before moving to the next stage.
 
 ## Philosophy
 
-1. **Fresh > stale.** A new agent with curated context beats an old agent with accumulated cruft.
+A common failure mode: you write a plan, run a Ralph loop, and the agent executes incorrectly because the plan wasn't good enough. You can solve this by running a Ralph loop on the plan itself, allowing it to iterate until two agents agree the plan is fully fleshed out.
 
-2. **Consensus > confidence.** One agent's "done" is another agent's "wait, what about...?"
+The same pattern applies elsewhere. Bug reviews benefit from multiple passes where agents look with fresh eyes each time. Web research loops can ensure citations are correct and you're pulling in the right context from varied sources. There are many use cases beyond just completing coding work.
 
-3. **Planning > implementing.** An iteration of planning costs less and prevents more waste than an iteration of implementing the wrong thing.
-
-4. **Set and forget.** If it needs babysitting, the automation isn't done yet.
+But these workflows need more flexibility than a basic Ralph loop provides. The engine gives you that flexibility. Different termination strategies, the ability to chain stages together, parallel execution across providers. You can build truly autonomous workflows and iterate on them.
 
 ---
 
-**Full reference:** [CLAUDE.md](CLAUDE.md) for architecture, configuration, template variables, testing
-
-**Stage/pipeline schema:** [scripts/pipelines/SCHEMA.md](scripts/pipelines/SCHEMA.md)
+**Full reference:** [CLAUDE.md](CLAUDE.md)
 
 ## License
 
