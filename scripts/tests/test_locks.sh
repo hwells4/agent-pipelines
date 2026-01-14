@@ -272,6 +272,59 @@ test_stale_lock_detected() {
   cleanup_test_dir "$tmp"
 }
 
+test_stale_lock_cleans_orphaned_beads() {
+  local tmp
+  tmp=$(create_test_dir "lock-test")
+  local previous_locks_dir=$LOCKS_DIR
+  LOCKS_DIR="$tmp/.claude/locks"
+  mkdir -p "$LOCKS_DIR"
+  _reset_lock_state
+
+  local lock_file="$LOCKS_DIR/orphan.lock"
+  jq -n \
+    --arg session "orphan" \
+    --arg pid "999999" \
+    --arg started "2025-01-01T00:00:00Z" \
+    '{session: $session, pid: ($pid | tonumber), started_at: $started}' > "$lock_file"
+
+  local mock_bin="$tmp/bin"
+  mkdir -p "$mock_bin"
+  local log_file="$tmp/bd.log"
+  export BD_MOCK_LOG="$log_file"
+
+  cat > "$mock_bin/bd" <<'MOCKSCRIPT'
+#!/bin/bash
+cmd=$1
+shift
+
+case "$cmd" in
+  list)
+    if echo "$*" | grep -q -- "--status=in_progress"; then
+      echo '[{"id":"beads-123"}]'
+    else
+      echo "[]"
+    fi
+    ;;
+  update)
+    echo "$*" >> "$BD_MOCK_LOG"
+    ;;
+  *)
+    ;;
+esac
+MOCKSCRIPT
+  chmod +x "$mock_bin/bd"
+
+  _with_path "$mock_bin:$PATH" cleanup_stale_locks
+
+  assert_file_not_exists "$lock_file" "stale lock removed"
+  assert_file_exists "$log_file" "cleanup wrote update log"
+  assert_contains "$(cat "$log_file")" "beads-123 --status=open" "orphaned bead released"
+
+  unset BD_MOCK_LOG
+  LOCKS_DIR="$previous_locks_dir"
+  cleanup_test_dir "$tmp"
+}
+
 #-------------------------------------------------------------------------------
 # is_locked tests
 #-------------------------------------------------------------------------------
@@ -366,6 +419,7 @@ run_test "acquire_lock conflict detection" test_acquire_lock_conflict
 run_test "release_lock removes file" test_release_lock_removes_file
 run_test "release_lock only owner" test_release_lock_only_owner
 run_test "stale lock detection" test_stale_lock_detected
+run_test "stale lock cleans orphaned beads" test_stale_lock_cleans_orphaned_beads
 run_test "is_locked true" test_is_locked_true
 run_test "is_locked false" test_is_locked_false
 run_test "detect_flock on Linux" test_detect_flock_linux

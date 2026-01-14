@@ -210,6 +210,8 @@ model: gpt-5.2-codex  # provider-specific model
 }
 ```
 
+When a stale lock is cleaned up, the engine releases any `in_progress` beads labeled `pipeline/{session}` back to `open` so crashed sessions do not orphan claims.
+
 ### Termination Strategies
 
 | Type | How It Works | Used By |

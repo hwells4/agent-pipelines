@@ -206,6 +206,37 @@ is_locked() {
   return 1
 }
 
+# Reset in-progress beads for a stale session (prevents orphaned claims).
+# Usage: cleanup_orphaned_beads "$session"
+cleanup_orphaned_beads() {
+  local session=$1
+  local label_prefix=${BEADS_LABEL_PREFIX:-"pipeline/"}
+
+  [ -z "$session" ] && return 0
+
+  if ! command -v bd >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local label="${label_prefix}${session}"
+  local in_progress
+  in_progress=$(bd list --label="$label" --status=in_progress --json 2>/dev/null || echo "[]")
+
+  local bead_ids
+  bead_ids=$(echo "$in_progress" | jq -r '.[]? | .id // empty' 2>/dev/null)
+
+  if [ -z "$bead_ids" ]; then
+    return 0
+  fi
+
+  echo "Releasing orphaned beads for session '$session'" >&2
+
+  local bead_id
+  for bead_id in $bead_ids; do
+    bd update "$bead_id" --status=open >/dev/null 2>&1 || true
+  done
+}
+
 # Clean up stale locks (for dead PIDs)
 # Usage: cleanup_stale_locks
 cleanup_stale_locks() {
@@ -224,6 +255,7 @@ cleanup_stale_locks() {
     if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
       echo "Removing stale lock: $session (PID $pid)" >&2
       rm -f "$lock_file"
+      cleanup_orphaned_beads "$session"
     fi
   done
 }
