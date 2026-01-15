@@ -25,10 +25,8 @@ Use the iteration history to detect trends:
 - Is quality improving, plateauing, or declining?
 - Are there signs of diminishing returns?
 
-Output exactly:
-```json
+Output ONLY raw JSON (no markdown, no code blocks):
 { "stop": true/false, "reason": "...", "confidence": 0.0-1.0 }
-```
 
 Important:
 - stop=true means "goal achieved OR no further progress possible"

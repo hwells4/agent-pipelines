@@ -298,13 +298,25 @@ judge_decision() {
     return 0
   fi
 
-  if ! echo "$output" | jq -e '.' >/dev/null 2>&1; then
+  # Strip markdown code blocks if present (models sometimes wrap JSON)
+  local stripped_output="$output"
+  if echo "$output" | grep -q '```'; then
+    stripped_output=$(echo "$output" | sed -n '/```json/,/```/p' | sed '1d;$d')
+    if [ -z "$stripped_output" ]; then
+      # Try without json specifier
+      stripped_output=$(echo "$output" | sed -n '/```/,/```/p' | sed '1d;$d')
+    fi
+    [ -z "$stripped_output" ] && stripped_output="$output"
+  fi
+
+  if ! echo "$stripped_output" | jq -e '.' >/dev/null 2>&1; then
     echo "Warning: Judge returned invalid JSON" >&2
     judge_emit_event "judge_complete" "$session" "$cursor_json" \
       "$(jq -n --arg status "failed" --arg reason "invalid_json" --arg output "$output" '{status: $status, reason: $reason, output: $output}')"
     echo '{"stop":false,"reason":"invalid_json","confidence":0}'
     return 0
   fi
+  output="$stripped_output"
 
   local normalized
   normalized=$(echo "$output" | jq -c \
