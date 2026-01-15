@@ -17,13 +17,115 @@ if [ -f "$LIB_DIR/result.sh" ]; then
   source "$LIB_DIR/result.sh"
 fi
 
+if [ -f "$LIB_DIR/events.sh" ]; then
+  source "$LIB_DIR/events.sh"
+fi
+
+#-------------------------------------------------------------------------------
+# Parallel Event Helpers
+#-------------------------------------------------------------------------------
+
+parallel_is_int() {
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+parallel_int_or_default() {
+  local value=$1
+  local fallback=$2
+  if parallel_is_int "$value"; then
+    echo "$value"
+  else
+    echo "$fallback"
+  fi
+}
+
+parallel_build_cursor() {
+  local node_path=$1
+  local node_run=$2
+  local iteration=$3
+  local provider=${4:-""}
+
+  if [ -z "$node_path" ] || [ "$node_path" = "null" ]; then
+    echo "null"
+    return 0
+  fi
+
+  node_run=$(parallel_int_or_default "$node_run" 1)
+  iteration=$(parallel_int_or_default "$iteration" 0)
+
+  if [ -n "$provider" ] && [ "$provider" != "null" ]; then
+    jq -c -n \
+      --arg path "$node_path" \
+      --argjson run "$node_run" \
+      --argjson iter "$iteration" \
+      --arg provider "$provider" \
+      '{node_path: $path, node_run: $run, iteration: $iter, provider: $provider}'
+  else
+    jq -c -n \
+      --arg path "$node_path" \
+      --argjson run "$node_run" \
+      --argjson iter "$iteration" \
+      '{node_path: $path, node_run: $run, iteration: $iter}'
+  fi
+}
+
+parallel_emit_event() {
+  local type=$1
+  local session=$2
+  local cursor_json=$3
+  local data_json=${4:-"{}"}
+
+  if [ "${EVENT_SPINE_ENABLED:-true}" != "true" ]; then
+    return 0
+  fi
+
+  if [ -z "$cursor_json" ]; then
+    cursor_json="null"
+  fi
+  if [ -z "$data_json" ] || [ "$data_json" = "null" ]; then
+    data_json="{}"
+  fi
+
+  if ! append_event "$type" "$session" "$cursor_json" "$data_json"; then
+    echo "Warning: Failed to append event '$type' for session '$session'" >&2
+    return 1
+  fi
+}
+
+parallel_events_json() {
+  local session=$1
+
+  if type read_events &>/dev/null; then
+    read_events "$session" 2>/dev/null || echo "[]"
+  else
+    echo "[]"
+  fi
+}
+
+parallel_provider_complete_from_events() {
+  local events_json=$1
+  local node_path=$2
+  local provider=$3
+
+  if [ -z "$events_json" ] || [ "$events_json" = "[]" ]; then
+    return 1
+  fi
+
+  local match_count
+  match_count=$(echo "$events_json" | jq \
+    --arg path "$node_path" \
+    --arg provider "$provider" \
+    '[.[] | select(.type == "parallel_provider_complete" and .cursor.node_path == $path and .cursor.provider == $provider)] | length')
+  [ "$match_count" -gt 0 ]
+}
+
 #-------------------------------------------------------------------------------
 # Parallel Provider Execution
 #-------------------------------------------------------------------------------
 
 # Run stages sequentially for a single provider within a parallel block
 # Called in a subshell, one per provider
-# Usage: run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults_json"
+# Usage: run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults_json" "$node_path"
 # Returns: 0 on success, 1 on failure
 run_parallel_provider() {
   local provider=$1
@@ -31,12 +133,22 @@ run_parallel_provider() {
   local stages_json=$3
   local session=$4
   local defaults_json=$5
+  local node_path=${6:-"0"}
+  local node_run=${7:-1}
 
   local provider_dir="$block_dir/providers/$provider"
   local provider_state="$provider_dir/state.json"
 
   # Mark provider as running
   jq '.status = "running"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+
+  node_run=$(parallel_int_or_default "$node_run" 1)
+  local provider_cursor
+  provider_cursor=$(parallel_build_cursor "$node_path" "$node_run" 0 "$provider")
+  local stage_names
+  stage_names=$(echo "$stages_json" | jq -c '[.[].name]')
+  parallel_emit_event "parallel_provider_start" "$session" "$provider_cursor" \
+    "$(jq -n --arg provider "$provider" --argjson stages "$stage_names" '{provider: $provider, stages: $stages}')" || true
 
   local stage_count=$(echo "$stages_json" | jq 'length')
   # Provider-aware model default: opus for Claude, gpt-5.2-codex for Codex
@@ -84,6 +196,8 @@ run_parallel_provider() {
 
     if [ -z "$stage_prompt" ]; then
       echo "Error: No prompt found for stage '$stage_name'" >&2
+      parallel_emit_event "error" "$session" "$(parallel_build_cursor "$node_path" "$node_run" 0 "$provider")" \
+        "$(jq -n --arg msg "No prompt found for stage '$stage_name'" --arg stage "$stage_name" '{message: $msg, stage: $stage}')" || true
       return 1
     fi
 
@@ -169,6 +283,12 @@ run_parallel_provider() {
         '.iteration = $iter | .current_stage_name = $stage' \
         "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
 
+      local iter_cursor
+      iter_cursor=$(parallel_build_cursor "$node_path" "$node_run" "$iter" "$provider")
+      parallel_emit_event "iteration_start" "$session" "$iter_cursor" \
+        "$(jq -n --arg stage "$stage_name" --arg ref "$stage_type" --arg provider "$provider" --arg model "$stage_model" \
+          --argjson stage_index "$stage_idx" '{stage: $stage, ref: $ref, provider: $provider, model: $model, stage_index: $stage_index}')" || true
+
       # Export status file path for mock mode
       export MOCK_STATUS_FILE="$status_file"
       export MOCK_RESULT_FILE="$result_file"
@@ -192,6 +312,9 @@ run_parallel_provider() {
       if [ $exit_code -ne 0 ]; then
         jq --arg err "Exit code $exit_code" '.status = "failed" | .error = $err' \
           "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+        parallel_emit_event "error" "$session" "$iter_cursor" \
+          "$(jq -n --arg msg "Provider $provider exited with $exit_code" --argjson code "$exit_code" \
+            --arg stage "$stage_name" '{message: $msg, exit_code: $code, stage: $stage}')" || true
         return 1
       fi
 
@@ -233,6 +356,17 @@ run_parallel_provider() {
       jq --argjson iter "$iter" '.iteration_completed = $iter' \
         "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
 
+      parallel_emit_event "worker_complete" "$session" "$iter_cursor" \
+        "$(jq -n --arg result "$result_file" --argjson code "$exit_code" '{result_file: $result, exit_code: $code}')" || true
+
+      local summary
+      summary=$(jq -r '.summary // ""' "$result_file" 2>/dev/null || echo "")
+      local signals
+      signals=$(jq -c '.signals // {}' "$result_file" 2>/dev/null || echo "{}")
+      parallel_emit_event "iteration_complete" "$session" "$iter_cursor" \
+        "$(jq -n --arg result "$result_file" --arg summary "$summary" --argjson signals "$signals" \
+          --arg stage "$stage_name" '{result_file: $result, summary: $summary, signals: $signals, stage: $stage}')" || true
+
       # Check completion (for judgment/plateau termination)
       if [ "$term_type" = "judgment" ]; then
         # Filter history for this stage only and check plateau
@@ -268,6 +402,9 @@ run_parallel_provider() {
 
   # Mark provider complete
   jq '.status = "complete"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+
+  parallel_emit_event "parallel_provider_complete" "$session" "$provider_cursor" \
+    "$(jq -n --arg provider "$provider" --arg status "complete" '{provider: $provider, status: $status}')" || true
 
   return 0
 }
@@ -352,10 +489,11 @@ run_parallel_block() {
       source "$LIB_DIR/status.sh"
       source "$LIB_DIR/provider.sh"
       source "$LIB_DIR/stage.sh"
+      source "$LIB_DIR/events.sh"
       [ "$MOCK_MODE" = true ] && [ -f "$LIB_DIR/mock.sh" ] && source "$LIB_DIR/mock.sh"
 
       # Run provider stages sequentially
-      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults"
+      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx"
     ) &
     local pid=$!
     all_pids="$all_pids $pid"
@@ -440,21 +578,36 @@ run_parallel_block_resume() {
   local providers_to_run=""
   local skipped_providers=""
 
+  local events_json
+  events_json=$(parallel_events_json "$session")
+
   for provider in $providers; do
     local provider_state="$block_dir/providers/$provider/state.json"
     local resume_hint=""
+    local status_from_events=""
 
-    if type get_parallel_resume_hint &>/dev/null; then
-      resume_hint=$(get_parallel_resume_hint "$block_dir" "$provider")
+    if parallel_provider_complete_from_events "$events_json" "$stage_idx" "$provider"; then
+      status_from_events="complete"
+      if [ -f "$provider_state" ]; then
+        jq '.status = "complete"' "$provider_state" > "$provider_state.tmp" && mv "$provider_state.tmp" "$provider_state"
+      fi
     fi
 
     local status="pending"
     if [ -f "$provider_state" ]; then
       status=$(jq -r '.status // "pending"' "$provider_state")
     fi
-    if [ -n "$resume_hint" ]; then
-      local hint_status=$(echo "$resume_hint" | jq -r '.status // empty')
-      [ -n "$hint_status" ] && status="$hint_status"
+
+    if [ -n "$status_from_events" ]; then
+      status="$status_from_events"
+    else
+      if type get_parallel_resume_hint &>/dev/null; then
+        resume_hint=$(get_parallel_resume_hint "$block_dir" "$provider")
+      fi
+      if [ -n "$resume_hint" ]; then
+        local hint_status=$(echo "$resume_hint" | jq -r '.status // empty')
+        [ -n "$hint_status" ] && status="$hint_status"
+      fi
     fi
 
     if [ "$status" = "complete" ]; then
@@ -505,6 +658,7 @@ run_parallel_block_resume() {
       source "$LIB_DIR/status.sh"
       source "$LIB_DIR/provider.sh"
       source "$LIB_DIR/stage.sh"
+      source "$LIB_DIR/events.sh"
       [ "$MOCK_MODE" = true ] && [ -f "$LIB_DIR/mock.sh" ] && source "$LIB_DIR/mock.sh"
 
       # Initialize provider state if needed
@@ -515,7 +669,7 @@ run_parallel_block_resume() {
       fi
 
       # Run provider stages sequentially
-      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults"
+      run_parallel_provider "$provider" "$block_dir" "$stages_json" "$session" "$defaults" "$stage_idx"
     ) &
     local pid=$!
     all_pids="$all_pids $pid"
