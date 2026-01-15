@@ -198,8 +198,13 @@ infer_dependencies() {
   local needs_bd=false
   needs_bd=$(echo "$nodes_json" | jq -r '[.. | objects | select(has("termination")) | .termination.type == "queue"] | any')
 
-  local needs_tmux=false
-  needs_tmux=$(echo "$pipeline_json" | jq -r '[.. | objects | select(has("tmux")) | .tmux == true] | any')
+  # tmux is true by default (standard runtime mode), false only if explicitly disabled
+  local needs_tmux=true
+  local tmux_disabled
+  tmux_disabled=$(echo "$pipeline_json" | jq -r '[.. | objects | select(has("tmux")) | .tmux == false] | any')
+  if [ "$tmux_disabled" = "true" ]; then
+    needs_tmux=false
+  fi
 
   jq -n \
     --argjson needs_tmux "$needs_tmux" \
