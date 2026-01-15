@@ -2,6 +2,7 @@
 # Tests for plan compilation (scripts/lib/compile.sh)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/test.sh"
 source "$SCRIPT_DIR/lib/compile.sh"
 
@@ -49,6 +50,16 @@ set_compile_env() {
   export PROJECT_ROOT="$root"
   export STAGES_DIR="$root/scripts/stages"
   export PIPELINES_DIR="$root/scripts/pipelines"
+  export COMPILE_TIMESTAMP="2026-01-14T00:00:00Z"
+  export SESSION_CREATED_AT="2026-01-13T00:00:00Z"
+}
+
+set_compile_fixture_env() {
+  local root=$1
+
+  export PROJECT_ROOT="$root"
+  export STAGES_DIR="$root/scripts/tests/fixtures/stages"
+  export PIPELINES_DIR="$root/scripts/tests/fixtures/pipelines"
   export COMPILE_TIMESTAMP="2026-01-14T00:00:00Z"
   export SESSION_CREATED_AT="2026-01-13T00:00:00Z"
 }
@@ -273,6 +284,43 @@ EOF
   restore_compile_env "$prev_root" "$prev_stages" "$prev_pipelines" "$prev_timestamp" "$prev_created_at"
 }
 
+test_compile_fixture_pipeline_matches_expected() {
+  local tmp
+  tmp=$(create_test_dir "compile-fixture")
+  local prev_root=${PROJECT_ROOT:-}
+  local prev_stages=${STAGES_DIR:-}
+  local prev_pipelines=${PIPELINES_DIR:-}
+  local prev_timestamp=${COMPILE_TIMESTAMP:-}
+  local prev_created_at=${SESSION_CREATED_AT:-}
+
+  set_compile_fixture_env "$ROOT_DIR"
+
+  local pipeline_file="$PIPELINES_DIR/test-pipeline.yaml"
+  local plan_file="$tmp/plan.json"
+  compile_pipeline_file "$pipeline_file" "$plan_file" "fixture-session"
+  local exit_code=$?
+
+  assert_eq "0" "$exit_code" "compile fixture pipeline succeeds"
+  assert_file_exists "$plan_file" "fixture plan.json written"
+
+  local expected_file="$ROOT_DIR/scripts/tests/fixtures/expected/test-pipeline.plan.json"
+  local expected_json
+  expected_json=$(cat "$expected_file")
+  local actual_sha
+  actual_sha=$(jq -r '.source.sha256' "$plan_file")
+  expected_json=$(echo "$expected_json" | jq --arg sha "$actual_sha" '.source.sha256 = $sha')
+
+  local expected_sorted
+  expected_sorted=$(echo "$expected_json" | jq -S '.')
+  local actual_sorted
+  actual_sorted=$(jq -S '.' "$plan_file")
+
+  assert_eq "$expected_sorted" "$actual_sorted" "fixture plan matches expected output"
+
+  cleanup_test_dir "$tmp"
+  restore_compile_env "$prev_root" "$prev_stages" "$prev_pipelines" "$prev_timestamp" "$prev_created_at"
+}
+
 #-------------------------------------------------------------------------------
 # Run Tests
 #-------------------------------------------------------------------------------
@@ -286,5 +334,6 @@ echo ""
 run_test "compile merges termination and defaults" test_compile_merges_termination_and_defaults
 run_test "compile inline prompt infers dependencies" test_compile_inline_prompt_infers_dependencies
 run_test "compile parallel block resolves prompts" test_compile_parallel_block_resolves_prompt
+run_test "compile fixture pipeline matches expected" test_compile_fixture_pipeline_matches_expected
 
 test_summary
