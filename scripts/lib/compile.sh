@@ -88,6 +88,9 @@ normalize_termination_from_config() {
   local fallback_type=${2:-""}
 
   echo "$config_json" | jq -c --arg fallback "$fallback_type" '
+    def runs_override:
+      if (.runs | type) == "object" then .runs else null end;
+
     def completion_to_type:
       if . == "beads-empty" then "queue"
       elif . == "plateau" then "judgment"
@@ -96,6 +99,7 @@ normalize_termination_from_config() {
       end;
 
     (if (.termination? != null) then .termination
+     elif (runs_override != null) then runs_override
      elif (.completion? != null and .completion != "") then
        {type: (.completion | completion_to_type)}
        + (if .consensus then {consensus: .consensus} else {} end)
@@ -152,6 +156,36 @@ resolve_stage_dir() {
   local searched
   searched=$(jq -n --arg path "$stage_dir" '[$path]')
   compile_error "stage_resolution" "Stage '$stage_ref' not found" "$searched" "Run 'library list' to see available stages"
+  return 1
+}
+
+resolve_pipeline_file() {
+  local pipeline_ref=$1
+
+  if [ -z "$pipeline_ref" ]; then
+    compile_error "pipeline_resolution" "Pipeline reference missing" "[]" ""
+    return 1
+  fi
+
+  local candidates=()
+  if [[ "$pipeline_ref" == /* ]]; then
+    candidates+=("$pipeline_ref")
+  else
+    candidates+=("$pipeline_ref")
+    candidates+=("$PIPELINES_DIR/$pipeline_ref")
+    candidates+=("$PIPELINES_DIR/$pipeline_ref.yaml")
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  local searched
+  searched=$(printf '%s\n' "${candidates[@]}" | jq -R . | jq -s .)
+  compile_error "pipeline_resolution" "Pipeline '$pipeline_ref' not found" "$searched" "Run './scripts/run.sh' to list pipelines"
   return 1
 }
 
@@ -237,7 +271,7 @@ compile_stage_node() {
   local default_model=$4
 
   local stage_name
-  stage_name=$(echo "$stage_json" | jq -r '.name // empty')
+  stage_name=$(echo "$stage_json" | jq -r '.id // .name // empty')
   local stage_ref
   stage_ref=$(echo "$stage_json" | jq -r '.stage // .loop // empty')
   local stage_prompt_inline
@@ -248,8 +282,20 @@ compile_stage_node() {
   stage_context_override=$(echo "$stage_json" | jq -r '.context // empty')
   local stage_inputs
   stage_inputs=$(echo "$stage_json" | jq -c '.inputs // {}')
-  local stage_runs
-  stage_runs=$(echo "$stage_json" | jq -r '.runs // 1')
+  local stage_runs=""
+  local runs_type
+  runs_type=$(echo "$stage_json" | jq -r '.runs | type' 2>/dev/null || echo "null")
+  if [ "$runs_type" = "number" ]; then
+    stage_runs=$(echo "$stage_json" | jq -r '.runs')
+  elif [ "$runs_type" = "string" ]; then
+    local runs_value
+    runs_value=$(echo "$stage_json" | jq -r '.runs')
+    if [[ "$runs_value" =~ ^[0-9]+$ ]]; then
+      stage_runs="$runs_value"
+    fi
+  elif [ "$runs_type" = "null" ]; then
+    stage_runs="1"
+  fi
   local stage_provider_override
   stage_provider_override=$(echo "$stage_json" | jq -r '.provider // empty')
   local stage_model_override
@@ -369,7 +415,7 @@ compile_parallel_stage_node() {
   local stage_path=$2
 
   local stage_name
-  stage_name=$(echo "$stage_json" | jq -r '.name // empty')
+  stage_name=$(echo "$stage_json" | jq -r '.id // .name // empty')
   local stage_ref
   stage_ref=$(echo "$stage_json" | jq -r '.stage // .loop // empty')
   local stage_prompt_inline
@@ -380,8 +426,20 @@ compile_parallel_stage_node() {
   stage_context_override=$(echo "$stage_json" | jq -r '.context // empty')
   local stage_inputs
   stage_inputs=$(echo "$stage_json" | jq -c '.inputs // {}')
-  local stage_runs
-  stage_runs=$(echo "$stage_json" | jq -r '.runs // 1')
+  local stage_runs=""
+  local runs_type
+  runs_type=$(echo "$stage_json" | jq -r '.runs | type' 2>/dev/null || echo "null")
+  if [ "$runs_type" = "number" ]; then
+    stage_runs=$(echo "$stage_json" | jq -r '.runs')
+  elif [ "$runs_type" = "string" ]; then
+    local runs_value
+    runs_value=$(echo "$stage_json" | jq -r '.runs')
+    if [[ "$runs_value" =~ ^[0-9]+$ ]]; then
+      stage_runs="$runs_value"
+    fi
+  elif [ "$runs_type" = "null" ]; then
+    stage_runs="1"
+  fi
   local stage_model_override
   stage_model_override=$(echo "$stage_json" | jq -r '.model // empty')
 
@@ -466,7 +524,7 @@ compile_parallel_node() {
   local stage_idx=$2
 
   local stage_name
-  stage_name=$(echo "$stage_json" | jq -r '.name // empty')
+  stage_name=$(echo "$stage_json" | jq -r '.id // .name // empty')
   local stage_desc
   stage_desc=$(echo "$stage_json" | jq -r '.description // empty')
   local stage_inputs
@@ -518,6 +576,75 @@ compile_parallel_node() {
     '
 }
 
+compile_pipeline_node() {
+  local node_json=$1
+  local node_idx=$2
+
+  local node_name
+  node_name=$(echo "$node_json" | jq -r '.id // .name // empty')
+  local pipeline_ref
+  pipeline_ref=$(echo "$node_json" | jq -r '.pipeline // empty')
+  local node_desc
+  node_desc=$(echo "$node_json" | jq -r '.description // empty')
+  local node_inputs
+  node_inputs=$(echo "$node_json" | jq -c '.inputs // {}')
+
+  local runs_type
+  runs_type=$(echo "$node_json" | jq -r '.runs | type' 2>/dev/null || echo "null")
+  local node_runs="1"
+  if [ "$runs_type" = "number" ]; then
+    node_runs=$(echo "$node_json" | jq -r '.runs')
+  elif [ "$runs_type" = "string" ]; then
+    local runs_value
+    runs_value=$(echo "$node_json" | jq -r '.runs')
+    if [[ "$runs_value" =~ ^[0-9]+$ ]]; then
+      node_runs="$runs_value"
+    else
+      compile_error "pipeline_validation" "Pipeline node '$node_name' runs must be numeric" "[]" ""
+      return 1
+    fi
+  elif [ "$runs_type" != "null" ]; then
+    compile_error "pipeline_validation" "Pipeline node '$node_name' runs must be numeric" "[]" ""
+    return 1
+  fi
+
+  local pipeline_file
+  pipeline_file=$(resolve_pipeline_file "$pipeline_ref") || return 1
+
+  local tmp_plan
+  tmp_plan=$(mktemp)
+  local sub_session
+  sub_session=$(basename "$pipeline_file" .yaml)
+  if ! compile_pipeline_file "$pipeline_file" "$tmp_plan" "$sub_session"; then
+    rm -f "$tmp_plan"
+    return 1
+  fi
+
+  local subplan_json
+  subplan_json=$(cat "$tmp_plan")
+  rm -f "$tmp_plan"
+
+  jq -n \
+    --arg path "$node_idx" \
+    --arg id "$node_name" \
+    --arg ref "$pipeline_ref" \
+    --arg desc "$node_desc" \
+    --argjson runs "$node_runs" \
+    --argjson inputs "$node_inputs" \
+    --argjson plan "$subplan_json" \
+    '{
+      path: $path,
+      id: $id,
+      kind: "pipeline",
+      runs: $runs,
+      inputs: $inputs,
+      plan: $plan
+    }
+    + (if $ref != "" then {ref: $ref} else {} end)
+    + (if $desc != "" then {description: $desc} else {} end)
+    '
+}
+
 compile_pipeline_file() {
   local pipeline_file=$1
   local output_file=$2
@@ -553,18 +680,43 @@ compile_pipeline_file() {
     default_model=$(get_default_model "$default_provider")
   fi
 
-  local stage_count
-  stage_count=$(echo "$pipeline_json" | jq -r '.stages | length')
+  local node_source="nodes"
+  local node_count
+  node_count=$(echo "$pipeline_json" | jq -r '.nodes | length' 2>/dev/null || echo "0")
+  if ! [[ "$node_count" =~ ^[0-9]+$ ]]; then
+    node_count=0
+  fi
+  if [ "$node_count" -eq 0 ]; then
+    local legacy_count
+    legacy_count=$(echo "$pipeline_json" | jq -r '.stages | length' 2>/dev/null || echo "0")
+    if [[ "$legacy_count" =~ ^[0-9]+$ ]] && [ "$legacy_count" -gt 0 ]; then
+      node_source="stages"
+      node_count="$legacy_count"
+      local stages_line=""
+      if command -v yq >/dev/null 2>&1; then
+        stages_line=$(yq e '.stages | line' "$pipeline_file" 2>/dev/null || true)
+      fi
+      if [ -n "$stages_line" ] && [ "$stages_line" != "0" ]; then
+        echo "Warning: Pipeline '$pipeline_name' uses deprecated 'stages' key at line $stages_line. Rename to 'nodes'." >&2
+      else
+        echo "Warning: Pipeline '$pipeline_name' uses deprecated 'stages' key. Rename to 'nodes'." >&2
+      fi
+    fi
+  fi
   local nodes=()
 
-  for stage_idx in $(seq 0 $((stage_count - 1))); do
+  for stage_idx in $(seq 0 $((node_count - 1))); do
     local stage_json
-    stage_json=$(echo "$pipeline_json" | jq -c ".stages[$stage_idx]")
+    stage_json=$(echo "$pipeline_json" | jq -c ".${node_source}[$stage_idx]")
     local is_parallel=""
     is_parallel=$(echo "$stage_json" | jq -e '.parallel' 2>/dev/null || true)
+    local is_pipeline=""
+    is_pipeline=$(echo "$stage_json" | jq -e '.pipeline' 2>/dev/null || true)
 
     if [ -n "$is_parallel" ] && [ "$is_parallel" != "null" ]; then
       nodes+=("$(compile_parallel_node "$stage_json" "$stage_idx")")
+    elif [ -n "$is_pipeline" ] && [ "$is_pipeline" != "null" ]; then
+      nodes+=("$(compile_pipeline_node "$stage_json" "$stage_idx")")
     else
       nodes+=("$(compile_stage_node "$stage_json" "$stage_idx" "$default_provider" "$default_model")")
     fi

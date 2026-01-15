@@ -4,8 +4,8 @@
 name: v3-refine
 description: Refine v3 implementation tasks (3 iterations)
 
-stages:
-  - name: refine
+nodes:
+  - id: refine
     stage: refine-tasks
     termination:
       type: fixed

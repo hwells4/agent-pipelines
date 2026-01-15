@@ -118,6 +118,8 @@ show_help() {
     desc=$(grep "^description:" "$f" 2>/dev/null | cut -d: -f2- | sed 's/^[[:space:]]*//')
     echo "  $name - $desc"
   done
+  echo ""
+  echo "Pipeline schema: use 'nodes:' (deprecated: 'stages:')."
 }
 
 if [ -z "$1" ]; then

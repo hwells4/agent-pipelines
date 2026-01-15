@@ -233,19 +233,19 @@ When a stale lock is cleaned up, the engine releases any `in_progress` beads lab
 
 ### Multi-Stage Pipelines
 
-Chain stages together. Use `inputs:` to pass outputs between stages:
+Use `nodes:` for pipeline definitions (`stages:` is deprecated but still supported). Chain stages together with `inputs:`:
 ```yaml
 name: full-refine
 description: Refine plan then beads
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     runs: 5
-  - name: beads
+  - id: beads
     stage: refine-tasks
     runs: 5
     inputs:
-      from: plan        # Reference previous stage by name
+      from: plan        # Reference previous node by id
       select: latest    # "latest" (default) or "all"
 ```
 
@@ -264,30 +264,30 @@ Run multiple providers (Claude, Codex, etc.) concurrently with isolated contexts
 ```yaml
 name: parallel-refine
 description: Compare Claude and Codex refinements
-stages:
-  - name: setup
+nodes:
+  - id: setup
     stage: improve-plan
     termination:
       type: fixed
       iterations: 1
 
-  - name: dual-refine
+  - id: dual-refine
     parallel:
       providers: [claude, codex]
       stages:
-        - name: plan
+        - id: plan
           stage: improve-plan
           termination:
             type: fixed
             iterations: 1
-        - name: iterate
+        - id: iterate
           stage: improve-plan
           termination:
             type: judgment
             consensus: 2
             max: 5
 
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: iterate  # Read outputs from both providers
@@ -376,29 +376,29 @@ Agents receive inputs through `context.json`, which contains three input sources
 **2. Previous Stage Outputs** (`inputs.from_stage`): Outputs from earlier stages in multi-stage pipelines
 ```yaml
 # In pipeline.yaml
-stages:
-  - name: plan
+nodes:
+  - id: plan
     stage: improve-plan
     runs: 5
-  - name: implement
+  - id: implement
     stage: ralph
     runs: 25
     inputs:
-      from: plan        # References "plan" stage by name
+      from: plan        # References "plan" node by id
       select: latest    # "latest" (default) or "history" (all iterations)
 ```
 
 **3. Parallel Block Outputs** (`inputs.from_parallel`): Outputs from multiple providers running in parallel
 ```yaml
 # In pipeline.yaml
-stages:
-  - name: dual-refine
+nodes:
+  - id: dual-refine
     parallel:
       providers: [claude, codex]
       stages:
-        - name: iterate
+        - id: iterate
           stage: improve-plan
-  - name: synthesize
+  - id: synthesize
     stage: elegance
     inputs:
       from_parallel: iterate  # Gets outputs from both providers
