@@ -15,7 +15,7 @@ The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a built-in b
 
 ## Install
 
-### Terminal Command
+### Run this in your terminal
 ```bash
 
 claude plugin marketplace add https://github.com/hwells4/agent-pipelines
