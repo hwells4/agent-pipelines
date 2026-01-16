@@ -1,6 +1,6 @@
 # AGENTS Constitution
 
-Codex is a compiler for intent. This document is the constitution that constrains every run so the agent can produce auditable, high-quality changes. For Codex-specific guidance (running pipelines without skills/hooks), see `docs/codex.md`.
+Agent Pipelines agents are compilers for intent. This document is the constitution that constrains every run so agents can produce auditable, high-quality changes. For Codex-specific guidance (running pipelines without skills/hooks), see `docs/codex.md`.
 
 ## Execution Envelope
 
@@ -86,7 +86,18 @@ Skills (under `skills/`) extend Codex/Claude; invoke them inside Claude via slas
 | `test-audit` | `/test-audit` | Audit test coverage and quality |
 | `test-setup` | `/test-setup` | Set up testing infrastructure |
 
-User-facing slash commands under `commands/` (`/ralph`, `/refine`, `/ideate`, `/robot-mode`, `/readme-sync`, etc.) should be referenced verbatim when guiding humans or other agents.
+User-facing slash commands under `commands/` should be referenced verbatim:
+- `/elegance`
+- `/ideate`
+- `/monitor`
+- `/pipeline`
+- `/ralph`
+- `/readme-sync`
+- `/refine`
+- `/robot-mode`
+- `/sessions`
+- `/start`
+- `/work`
 
 ## Termination Strategies
 
@@ -289,8 +300,6 @@ Stages are defined in `scripts/stages/<name>/`. Each has `stage.yaml` (config) a
 ### Documentation Stages
 | Stage | Provider | Termination | Purpose |
 |-------|----------|-------------|---------|
-| `doc-audit` | claude | fixed | Analyze codebase for documentation gaps |
-| `doc-implement` | claude | fixed | Synthesize findings and implement fixes |
 | `doc-updater` | claude | judgment | Systematically update documentation |
 | `readme-sync` | claude | fixed | Keep README aligned with codebase |
 | `robot-mode` | claude | fixed | Design CLI interfaces for agent ergonomics |
