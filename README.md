@@ -21,7 +21,7 @@ The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a built-in b
 claude plugin marketplace add https://github.com/hwells4/agent-pipelines
 claude plugin install agent-pipelines@dodo-digital
 ```
-### Run in Claude Code
+### Or run these two slash commands in Claude Code
 ```bash
 /plugin marketplace add https://github.com/hwells4/agent-pipelines
 /plugin install agent-pipelines@dodo-digital
