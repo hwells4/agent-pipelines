@@ -1,12 +1,14 @@
 # Agent Pipelines
 
-Agent Pipelines is a Claude Code plugin for building and running [Ralph Loops](https://ghuntley.com/ralph/). It adds a composable engine that lets you:
+Agent Pipelines is a Claude Code plugin to build and deploy agent pipelines in less than 5 minutes. Pipelines are comprised of "stages" that run Claude Code or Codex in a loop to complete an arbitrary task. For example:
 
-- **Loop on anything.** Each stage can iterate on plan files, task queues, codebases, URL lists, CSVs. Whatever.
-- **Chain stages together.** Planning → task refinement → implementation.
-- **Mix providers across stages.** Use Claude for planning and Codex for implementation in the same workflow.
-- **Run providers in parallel.** Spin up Claude and Codex on the same stage, have each iterate separately, then synthesize the results.
-- **Stop when it makes sense.** Fixed count, two-agent consensus, or queue empty.
+1. **Turn a PRD into code:** Claude refines plan.md for 5 loops --> Claude + Codex turn the plan into a task list in parallel --> A Claude Code refines the task list for 5 loops --> Codex implements the work, looping over each task until complete.
+2. **Create a personalized onboarding for new clients:** Claude researches client and creates context.md --> Claude generates personalized onboarding based on a template + context.md --> Claude validates the result against known client info, additional web research and your personal writing style for 5 loops.
+3. **Remove AI tells from your writing:** Claude Code writes an article --> A content humanizer runs for 5 loops removing emdashes, AI tells, and overused words.
+
+The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a bash engine to make it as easy as possible to build and run agent pipelines. To build your first pipleine, run /pipeline and describe the workflow you want to build. Claude will interview you and then spin up a dedicated pipeline-arcitect-agent to scaffold, build and test your pipeline. 
+
+**Example:** "/pipeline build me a pipeline that refines a plan for 5 iterations, turns it into a set of tasks, and then iterates on those tasks until they're done."
 
 ## Install
 
@@ -17,7 +19,17 @@ claude plugin install agent-pipelines@dodo-digital
 
 **Dependencies:** [`tmux`](https://github.com/tmux/tmux), [`jq`](https://github.com/jqlang/jq), [`yq`](https://github.com/mikefarah/yq), [`bd`](https://github.com/steveyegge/beads) (beads CLI)
 
-## Example
+## 1. The Engine
+
+The engine is built on bash scripts that ship with the Claude Code plugin. It supports workflows that:
+
+- **Loop on anything.** Each stage can iterate on plan files, task queues, codebases, URL lists, CSVs. Whatever.
+- **Chain stages together.** Planning → task refinement → implementation.
+- **Mix providers across stages.** Use Claude for planning and Codex for implementation in the same workflow.
+- **Run providers in parallel.** Spin up Claude and Codex on the same stage tog et different perspectives on a problem. Have each iterate separately, then synthesize the results.
+- **Stop when it makes sense.** Fixed count, two-agent consensus, or queue empty.
+
+## This is a an example of a Pipeline built on top of our engine
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -28,8 +40,6 @@ claude plugin install agent-pipelines@dodo-digital
 │ judgment stop   │     │ judgment stop   │     │ queue stop      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
-## This is a Pipeline
-
 Each stage in a pipeline is its own Ralph loop. It takes inputs, manages its own state, and when it finishes, passes outputs and accumulated learnings to the next stage. The stages are independent, so one can use Claude for planning while the next uses Codex for implementation.
 
 Each iteration spawns a fresh agent that reads a progress file containing accumulated learnings, patterns discovered, and work completed.
