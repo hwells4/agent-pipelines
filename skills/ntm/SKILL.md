@@ -3,6 +3,52 @@ name: ntm
 description: Orchestrate multi-agent sessions with NTM (Named Tmux Manager). Spawn Claude, Codex, and Gemini agents in parallel tmux panes, broadcast prompts, monitor progress, and collect outputs. Use when coordinating multiple AI agents on a shared task.
 ---
 
+<dependencies>
+
+**Before proceeding, check that ntm is installed:**
+
+```bash
+command -v ntm && ntm --version
+```
+
+If ntm is not found, inform the user:
+
+> **NTM not installed.** This skill requires the `ntm` CLI tool.
+>
+> Install it with:
+> ```bash
+> # Using Homebrew (macOS)
+> brew install hwells4/tap/ntm
+>
+> # Or from source
+> go install github.com/hwells4/ntm@latest
+> ```
+>
+> After installing, run `/ntm` again.
+
+**Also verify tmux is available:**
+
+```bash
+command -v tmux && tmux -V
+```
+
+If tmux is missing:
+
+> **tmux not installed.** NTM requires tmux to manage agent sessions.
+>
+> Install it with:
+> ```bash
+> # macOS
+> brew install tmux
+>
+> # Ubuntu/Debian
+> sudo apt install tmux
+> ```
+
+**Do not proceed with the skill until both dependencies are confirmed.**
+
+</dependencies>
+
 <essential_principles>
 
 NTM transforms tmux into a multi-agent command center. Key concepts:
