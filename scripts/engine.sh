@@ -1163,16 +1163,30 @@ run_pipeline() {
 FORCE_FLAG=""
 RESUME_FLAG=""
 RECOMPILE_FLAG=""
+PIPELINE_CLI_INPUTS=""
+PIPELINE_CLI_CONTEXT=""
+PIPELINE_CLI_PROVIDER=""
+PIPELINE_CLI_MODEL=""
+INPUT_FILES=()
 ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE_FLAG="--force" ;;
     --resume) RESUME_FLAG="--resume" ;;
     --recompile) RECOMPILE_FLAG="--recompile" ;;
+    --input=*) INPUT_FILES+=("${arg#--input=}") ;;
+    --context=*) PIPELINE_CLI_CONTEXT="${arg#--context=}" ;;
+    --provider=*) PIPELINE_CLI_PROVIDER="${arg#--provider=}" ;;
+    --model=*) PIPELINE_CLI_MODEL="${arg#--model=}" ;;
     *) ARGS+=("$arg") ;;
   esac
 done
 set -- "${ARGS[@]}"
+
+# Build JSON array from input files if any were specified
+if [ ${#INPUT_FILES[@]} -gt 0 ]; then
+  PIPELINE_CLI_INPUTS=$(printf '%s\n' "${INPUT_FILES[@]}" | jq -R . | jq -s .)
+fi
 
 # Cleanup stale locks on startup
 cleanup_stale_locks
