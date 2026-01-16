@@ -2,12 +2,14 @@
 
 Agent Pipelines is a Claude Code plugin to build and deploy agent pipelines in less than 5 minutes. Pipelines are comprised of "stages" that run Claude Code or Codex in a loop to complete an arbitrary task. 
 
-**To create a pipeline**, run "/pipeline build me a pipeline that refines a plan for 5 iterations, turns it into a set of tasks, and then iterates on those tasks until they're done." Claude will create a pipeline that:
+**To create a pipeline**, run "/pipeline build me a pipeline that refines a plan for 5 iterations, uses multiple perspectives to create a task list, refines the tasks, and iterates on them until they're done." 
 
-1. Claude refines plan.md for 5 loops.
-2. Claude + Codex turn the plan into a task list in parallel.
-3. Claude refines the task list for 5 loops.
-4. Codex implements the work, looping over each task until complete.
+Claude will create a 4-stage pipeline that:
+
+Stage 1. Claude refines plan.md for 5 loops.
+Stage 2. Claude + Codex turn the plan into a task list in parallel.
+Stage 3. Claude refines the task list for 5 loops.
+Stage 4. Codex implements the work, looping over each task until complete.
 
 The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a built-in bash engine to make it as easy as possible create and run agent pipelines. 
 
