@@ -1,14 +1,13 @@
 # Agent Pipelines
 
-Agent Pipelines is a Claude Code plugin to build and deploy agent pipelines in less than 5 minutes. Pipelines are comprised of "stages" that run Claude Code or Codex in a loop to complete an arbitrary task. For example:
+Agent Pipelines is a Claude Code plugin to build and deploy agent pipelines in less than 5 minutes. Pipelines are comprised of "stages" that run Claude Code or Codex in a loop to complete an arbitrary task. **To create a pipeline**, run "/pipeline build me a pipeline that refines a plan for 5 iterations, turns it into a set of tasks, and then iterates on those tasks until they're done." Claude will create a pipeline that:
 
-1. **Turn a PRD into code:** Claude refines plan.md for 5 loops --> Claude + Codex turn the plan into a task list in parallel --> A Claude Code refines the task list for 5 loops --> Codex implements the work, looping over each task until complete.
-2. **Create a personalized onboarding for new clients:** Claude researches client and creates context.md --> Claude generates personalized onboarding based on a template + context.md --> Claude validates the result against known client info, additional web research and your personal writing style for 5 loops.
-3. **Remove AI tells from your writing:** Claude Code writes an article --> A content humanizer runs for 5 loops removing emdashes, AI tells, and overused words.
+1. Claude refines plan.md for 5 loops.
+2. Claude + Codex turn the plan into a task list in parallel.
+3. Claude refines the task list for 5 loops.
+4. Codex implements the work, looping over each task until complete.
 
-The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a bash engine to make it as easy as possible to build and run agent pipelines. To build your first pipleine, run /pipeline and describe the workflow you want to build. Claude will interview you and then spin up a dedicated pipeline-arcitect-agent to scaffold, build and test your pipeline. 
-
-**Example:** "/pipeline build me a pipeline that refines a plan for 5 iterations, turns it into a set of tasks, and then iterates on those tasks until they're done."
+The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a built-in bash engine to make it as easy as possible create and run agent pipelines. 
 
 ## Install
 
