@@ -75,6 +75,33 @@ Task(
 )
 ```
 
+**CRITICAL: User-Provided Prompts**
+
+If the user provides a specific prompt or prompt text, preserve it EXACTLY as given. Do not rewrite, restructure, or "improve" their prompt. Add only the minimal engine integration wrapper:
+
+```markdown
+# {Stage Name}
+
+Read context from: ${CTX}
+Progress file: ${PROGRESS}
+Status output: ${STATUS}
+Session: ${SESSION_NAME}
+Iteration: ${ITERATION}
+
+${CONTEXT}
+
+---
+
+[USER'S EXACT PROMPT TEXT HERE - VERBATIM, NO CHANGES]
+
+---
+
+## Engine Integration
+[minimal: load context, write status]
+```
+
+The user's prompt is the core content. The engine wrapper is just plumbing.
+
 **Stage specification format:**
 ```yaml
 name: stage-name
