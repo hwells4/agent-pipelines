@@ -15,9 +15,16 @@ The plugin includes a set of 6 skills, 3 subagents, 5 commands, and a built-in b
 
 ## Install
 
+### Terminal Command
 ```bash
+
 claude plugin marketplace add https://github.com/hwells4/agent-pipelines
 claude plugin install agent-pipelines@dodo-digital
+```
+### Run in Claude Code
+```bash
+/plugin marketplace add https://github.com/hwells4/agent-pipelines
+/plugin install agent-pipelines@dodo-digital
 ```
 
 **Dependencies:** [`tmux`](https://github.com/tmux/tmux), [`jq`](https://github.com/jqlang/jq), [`yq`](https://github.com/mikefarah/yq), [`bd`](https://github.com/steveyegge/beads) (beads CLI)
