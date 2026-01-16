@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Start
+
+| I want to... | Command |
+|--------------|---------|
+| Start any pipeline | `/start` |
+| Implement a feature with Codex | `/work implement user auth` |
+| Refine a plan | `/refine` |
+| Generate improvement ideas | `/ideate` |
+| Create a new pipeline | `/pipeline` |
+| Check running sessions | `/sessions list` |
+
 ## Philosophy
 
 This codebase will outlive you. Every shortcut becomes someone else's burden. Establish will be copied and corners you cut will be cut again. Please fight entropy and leave the codebase better than you found it.
@@ -360,15 +371,6 @@ On resume, completed providers are skipped; only failed/incomplete providers res
 | `${SESSION_NAME}` | Session name |
 | `${CONTEXT}` | Injected context text (from CLI `--context` or env `CLAUDE_PIPELINE_CONTEXT`) |
 | `${OUTPUT}` | Path to write output (multi-stage pipelines, set via `output_path` in stage.yaml) |
-
-### Legacy Variables (Deprecated, still work)
-
-| Variable | Description |
-|----------|-------------|
-| `${SESSION}` | Same as `${SESSION_NAME}` |
-| `${INDEX}` | 0-based iteration index |
-| `${PROGRESS_FILE}` | Same as `${PROGRESS}` |
-| `${OUTPUT_PATH}` | Same as `${OUTPUT}` (from `output_path` in stage.yaml) |
 
 ## Input System
 
