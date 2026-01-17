@@ -1,9 +1,14 @@
 name: dueling-wizards
 description: Cross-evaluation debate between Claude and Codex (Jeffrey Emanuel pattern)
 
-# This pipeline demonstrates per-provider inputs in parallel blocks.
-# Each provider can receive different inputs, enabling cross-feeding patterns
-# where Claude evaluates Codex's output and vice versa.
+# This pipeline demonstrates the full cross-evaluation debate pattern:
+# 1. Both providers generate ideas independently
+# 2. Each evaluates the OTHER's ideas (cross-feed)
+# 3. Each sees their OWN ideas + the OTHER's critique, and responds
+# 4. A synthesizer combines everything
+#
+# Block 3 uses array-based from_parallel to give each provider multiple inputs:
+# their own history AND the other provider's critique.
 
 nodes:
   # Block 1: Both generate ideas independently (same prompt, same inputs)
@@ -45,7 +50,7 @@ nodes:
             type: fixed
             iterations: 1
 
-  # Block 3: Cross-reflect (each sees how the other rated THEIR ideas)
+  # Block 3: Cross-reflect (each sees OWN ideas + OTHER's critique)
   - id: reflect
     parallel:
       providers:
@@ -53,18 +58,22 @@ nodes:
           model: opus
           inputs:
             from_parallel:
-              stage: rate
-              providers: [codex]  # Claude sees Codex's rating of Claude's ideas
+              - stage: generate
+                providers: [claude]  # My original ideas
+              - stage: rate
+                providers: [codex]   # Codex's critique of my ideas
         - name: codex
           model: gpt-5.2-codex:xhigh
           inputs:
             from_parallel:
-              stage: rate
-              providers: [claude]  # Codex sees Claude's rating of Codex's ideas
+              - stage: generate
+                providers: [codex]   # My original ideas
+              - stage: rate
+                providers: [claude]  # Claude's critique of my ideas
       stages:
         - id: respond
           stage: idea-wizard  # Reusing for demo; would be reflect-on-rating
-          context: "Respond to how the other model rated your ideas"
+          context: "Here are your original ideas and the other model's critique. Respond to defend or refine your ideas."
           termination:
             type: fixed
             iterations: 1

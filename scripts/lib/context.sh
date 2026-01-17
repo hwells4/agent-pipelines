@@ -215,10 +215,18 @@ build_inputs_json() {
     fi
   fi
 
-  # Handle from_parallel inputs
+  # Handle from_parallel inputs (supports both single object and array of objects)
   local from_parallel_config=$(echo "$stage_config" | jq -c '.inputs.from_parallel // null')
   if [ "$from_parallel_config" != "null" ] && [ -n "$from_parallel_config" ]; then
-    from_parallel=$(build_from_parallel_inputs "$stage_config" "$run_dir")
+    # Check if it's an array or single object/string
+    if echo "$from_parallel_config" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      # Array: process each source and combine into array
+      from_parallel=$(build_from_parallel_inputs_array "$stage_config" "$run_dir")
+    else
+      # Single object/string: wrap result in array for consistent output
+      local single_result=$(build_from_parallel_inputs_single "$from_parallel_config" "$stage_config" "$run_dir")
+      from_parallel=$(echo "[$single_result]" | jq -c '.')
+    fi
   fi
 
   # Collect from previous iterations of current stage
@@ -250,8 +258,8 @@ build_inputs_json() {
   fi
 
   # Combine into inputs object
-  # Include from_parallel only if it has content
-  if [ "$from_parallel" != "{}" ] && [ -n "$from_parallel" ]; then
+  # Include from_parallel only if it has content (now an array)
+  if [ "$from_parallel" != "[]" ] && [ "$from_parallel" != "{}" ] && [ -n "$from_parallel" ]; then
     jq -n \
       --argjson from_stage "$from_stage" \
       --argjson from_iterations "$from_iterations" \
@@ -267,16 +275,34 @@ build_inputs_json() {
   fi
 }
 
-# Build from_parallel inputs based on manifest from a parallel block
-# Usage: build_from_parallel_inputs "$stage_config" "$run_dir"
-# Returns: JSON object with providers and their outputs
-build_from_parallel_inputs() {
+# Build from_parallel inputs for an array of sources
+# Usage: build_from_parallel_inputs_array "$stage_config" "$run_dir"
+# Returns: JSON array of resolved parallel sources
+build_from_parallel_inputs_array() {
   local stage_config=$1
   local run_dir=$2
 
-  # Parse from_parallel configuration
-  # Can be shorthand string (stage name) or full object
-  local from_parallel_config=$(echo "$stage_config" | jq -c '.inputs.from_parallel')
+  local results="[]"
+
+  # Iterate over each from_parallel entry
+  while IFS= read -r source; do
+    [ -z "$source" ] && continue
+    local resolved=$(build_from_parallel_inputs_single "$source" "$stage_config" "$run_dir")
+    if [ "$resolved" != "{}" ] && [ -n "$resolved" ]; then
+      results=$(echo "$results" | jq --argjson r "$resolved" '. + [$r]')
+    fi
+  done < <(echo "$stage_config" | jq -c '.inputs.from_parallel[]')
+
+  echo "$results"
+}
+
+# Build from_parallel inputs for a single source config
+# Usage: build_from_parallel_inputs_single "$from_parallel_config" "$stage_config" "$run_dir"
+# Returns: JSON object with providers and their outputs
+build_from_parallel_inputs_single() {
+  local from_parallel_config=$1
+  local stage_config=$2
+  local run_dir=$3
 
   local stage_name=""
   local block_name=""
