@@ -422,4 +422,79 @@ run_test "Initial inputs empty default" test_initial_inputs_empty_default
 run_test "Initial inputs invalid JSON" test_initial_inputs_invalid_json
 run_test "Initial inputs in context.json" test_initial_inputs_in_context_json
 
+#-------------------------------------------------------------------------------
+# Parallel Scope Initial Inputs Tests
+#-------------------------------------------------------------------------------
+
+test_initial_inputs_parallel_scope() {
+  # Setup: Provider context with parallel_scope.pipeline_root pointing to where plan.json lives
+  # This simulates a parallel block provider where plan.json is in the main pipeline directory
+  # but the current run_dir is the isolated provider directory
+  local tmp=$(create_test_dir)
+
+  # Main pipeline directory (where plan.json lives)
+  mkdir -p "$tmp/pipeline-runs/session"
+  echo "initial input content" > "$tmp/input-doc.md"
+  create_plan_with_inputs "$tmp/pipeline-runs/session" '["'"$tmp/input-doc.md"'"]'
+
+  # Provider's isolated directory (no plan.json here)
+  mkdir -p "$tmp/pipeline-runs/session/parallel-00-block/providers/claude/stage-00-work/iterations"
+
+  local provider_dir="$tmp/pipeline-runs/session/parallel-00-block/providers/claude"
+  local pipeline_root="$tmp/pipeline-runs/session"
+
+  # Stage config with parallel_scope pointing to pipeline_root
+  local config='{
+    "id": "work",
+    "index": 0,
+    "parallel_scope": {
+      "scope_root": "'"$provider_dir"'",
+      "pipeline_root": "'"$pipeline_root"'"
+    }
+  }'
+
+  local inputs=$(build_inputs_json "$provider_dir" "$config" 1)
+  local count=$(echo "$inputs" | jq '.from_initial | length')
+  local file=$(echo "$inputs" | jq -r '.from_initial[0]')
+
+  assert_eq "1" "$count" "parallel scope reads from_initial from pipeline_root"
+  assert_contains "$file" "input-doc.md" "parallel scope has correct initial input file"
+
+  cleanup_test_dir "$tmp"
+}
+
+test_initial_inputs_parallel_scope_without_plan() {
+  # Setup: Provider context with parallel_scope but no plan.json in pipeline_root either
+  # Expected: from_initial is empty array (graceful handling)
+  local tmp=$(create_test_dir)
+
+  # Main pipeline directory (no plan.json)
+  mkdir -p "$tmp/pipeline-runs/session"
+
+  # Provider's isolated directory
+  mkdir -p "$tmp/pipeline-runs/session/parallel-00-block/providers/claude/stage-00-work/iterations"
+
+  local provider_dir="$tmp/pipeline-runs/session/parallel-00-block/providers/claude"
+  local pipeline_root="$tmp/pipeline-runs/session"
+
+  local config='{
+    "id": "work",
+    "index": 0,
+    "parallel_scope": {
+      "scope_root": "'"$provider_dir"'",
+      "pipeline_root": "'"$pipeline_root"'"
+    }
+  }'
+
+  local inputs=$(build_inputs_json "$provider_dir" "$config" 1)
+  local from_initial=$(echo "$inputs" | jq -c '.from_initial')
+
+  assert_eq "[]" "$from_initial" "parallel scope with no plan.json returns empty array"
+
+  cleanup_test_dir "$tmp"
+}
+
+run_test "Initial inputs parallel scope" test_initial_inputs_parallel_scope
+run_test "Initial inputs parallel scope without plan" test_initial_inputs_parallel_scope_without_plan
+
 test_summary

@@ -1160,13 +1160,15 @@ run_pipeline() {
 #-------------------------------------------------------------------------------
 
 # Parse flags from remaining args
+# Note: Preserve environment variables if already set (from run.sh)
 FORCE_FLAG=""
 RESUME_FLAG=""
 RECOMPILE_FLAG=""
-PIPELINE_CLI_INPUTS=""
-PIPELINE_CLI_CONTEXT=""
-PIPELINE_CLI_PROVIDER=""
-PIPELINE_CLI_MODEL=""
+# Only reset these if not already set from environment (run.sh exports them)
+: "${PIPELINE_CLI_INPUTS:=}"
+: "${PIPELINE_CLI_CONTEXT:=}"
+: "${PIPELINE_CLI_PROVIDER:=}"
+: "${PIPELINE_CLI_MODEL:=}"
 INPUT_FILES=()
 ARGS=()
 for arg in "$@"; do

@@ -247,8 +247,12 @@ build_inputs_json() {
   fi
 
   # Load initial inputs from plan.json session.inputs
+  # When in parallel scope, check pipeline_root first for plan.json
   local from_initial="[]"
   local plan_file="$run_dir/plan.json"
+  if [ -n "$pipeline_root" ] && [ -f "$pipeline_root/plan.json" ]; then
+    plan_file="$pipeline_root/plan.json"
+  fi
   if [ -f "$plan_file" ]; then
     from_initial=$(jq -c '.session.inputs // []' "$plan_file" 2>/dev/null || echo "[]")
     # Validate it's valid JSON array
