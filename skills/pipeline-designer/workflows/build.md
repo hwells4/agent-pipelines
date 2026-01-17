@@ -27,17 +27,32 @@ Before proceeding, develop a clear mental model of:
    - What outcome do they want?
    - What does success look like?
 
-2. **What should each iteration accomplish?**
-   - Is there a queue of work items?
-   - Is it about progressive refinement?
-   - Is it about generating ideas?
+2. **What kind of loop is this?** (CRITICAL for prompt style)
 
-3. **When should the work stop?**
-   - When a queue is empty?
-   - When quality plateaus (consensus)?
-   - After exactly N iterations?
+   Infer from context, only ask if genuinely unclear:
 
-4. **What outputs matter?**
+   | If they say... | It's probably... |
+   |----------------|------------------|
+   | "work through tasks", "execute queue" | Execution loop (low autonomy, defined tasks) |
+   | "improve", "refine", "until ready" | Refinement loop (medium autonomy, quality plateau) |
+   | "validate", "expand sources", "fact-check" | Validation loop (high autonomy, seeds to expand) |
+   | "discover", "find bugs", "explore" | Discovery loop (full autonomy, finding unknowns) |
+   | "brainstorm", "generate ideas" | Ideation loop (full autonomy, quantity focus) |
+
+3. **What's the quality bar?** (Must be concrete and testable)
+
+   | Bad | Good |
+   |-----|------|
+   | "Improve the plan" | "Tasks implementable without clarifying questions" |
+   | "Find bugs" | "Bugs that would cost >1 hour to fix in production" |
+   | "Research thoroughly" | "3+ independent sources per claim, all verified recent" |
+
+4. **When should the work stop?**
+   - When a queue is empty? → queue termination
+   - When quality plateaus (consensus)? → judgment termination
+   - After exactly N iterations? → fixed termination
+
+5. **What outputs matter?**
    - Files produced?
    - State changes?
    - Handoff to next stage?
@@ -100,6 +115,11 @@ Before spawning, synthesize your understanding into a requirements summary:
 ## Requirements Summary
 
 **Problem:** [What they're solving]
+
+**Loop characteristics:** (CRITICAL - determines prompt style)
+- Agent autonomy: [full/high/medium/low]
+- Starting point: [nothing/seeds/existing work/defined tasks]
+- Quality bar: [CONCRETE and TESTABLE definition of "good enough"]
 
 **Iteration behavior:**
 - Each iteration does: [description]

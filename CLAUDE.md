@@ -25,6 +25,27 @@ Agent Pipelines is a [Ralph loop](https://ghuntley.com/ralph/) orchestrator for 
 
 **Everything is a pipeline.** A "loop" is just a single-stage pipeline. The unified engine treats all executions the same way.
 
+## Plugin Context (IMPORTANT for agents)
+
+When agent-pipelines runs as a **plugin** (installed via Claude Code plugin system), all paths are relative to the plugin install location, NOT the user's project directory.
+
+**How to find plugin files:**
+
+1. **Check session startup output** for `AGENT_PIPELINES_ROOT=<path>` - this is the plugin root
+2. **Run discovery script**: `~/.claude/plugins/cache/*/agent-pipelines/*/scripts/lib/plugin-root.sh`
+3. **Common plugin cache path**: `~/.claude/plugins/cache/dodo-digital/agent-pipelines/{version}/`
+
+**Path resolution when running as plugin:**
+```
+# In-repo paths:                        # As plugin, prepend AGENT_PIPELINES_ROOT:
+scripts/stages/ralph/                   → $AGENT_PIPELINES_ROOT/scripts/stages/ralph/
+scripts/pipelines/refine.yaml           → $AGENT_PIPELINES_ROOT/scripts/pipelines/refine.yaml
+skills/plan-refinery/SKILL.md           → $AGENT_PIPELINES_ROOT/skills/plan-refinery/SKILL.md
+./scripts/run.sh                        → $AGENT_PIPELINES_ROOT/scripts/run.sh
+```
+
+**Key insight:** When searching for agent-pipelines files in a user's project and they don't exist, look in the plugin cache instead. The session startup hook outputs `AGENT_PIPELINES_ROOT=` to help you find it.
+
 ## Commands
 
 ```bash

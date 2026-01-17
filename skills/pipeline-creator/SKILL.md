@@ -105,7 +105,8 @@ The user's prompt is the core content. The engine wrapper is just plumbing.
 **Stage specification format:**
 ```yaml
 name: stage-name
-description: What this stage does
+description: What this stage does (specific enough for loop-prompt-designer to infer style)
+quality_bar: "Concrete, testable definition of 'good enough'"
 termination:
   type: queue | judgment | fixed
   min_iterations: N
@@ -124,6 +125,15 @@ inputs:
   from: plan                 # Outputs from named node
   from_parallel: analyze     # Outputs from parallel block
 ```
+
+**Loop prompt design:** The `loop-prompt-designer` skill handles prompt creation. It infers the right style from the description:
+
+| Description pattern | Inferred style |
+|--------------------|----------------|
+| "discover", "find", "explore" | Full autonomy, exploration |
+| "validate", "verify", "expand sources" | High autonomy, validation |
+| "improve", "refine", "polish" | Medium autonomy, refinement |
+| "work through", "execute", "complete tasks" | Low autonomy, execution |
 
 Produces:
 - `scripts/stages/{name}/stage.yaml`
@@ -258,6 +268,7 @@ ls scripts/stages/
 | Reference | Purpose |
 |-----------|---------|
 | references/variables.md | Template variable reference |
+| references/loop-prompt-patterns.md | **CRITICAL** - How to write loop prompts vs one-shot prompts |
 
 ## Workflows Index
 

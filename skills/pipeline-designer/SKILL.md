@@ -85,6 +85,28 @@ Read `workflows/build.md` for full details. Key principle:
 - What each iteration should accomplish
 - When the work should stop
 - What outputs matter
+- **What TYPE of loop this is** (critical for prompt style)
+
+### Loop Prompt Design
+
+The `loop-prompt-designer` skill handles prompt design. Your job is to provide:
+
+1. **Clear stage description** - Specific enough that the skill can infer the prompt style
+   - "Discover bugs with fresh eyes" → discovery loop
+   - "Validate and expand sources" → validation loop
+   - "Improve plan until ready" → refinement loop
+   - "Work through task queue" → execution loop
+
+2. **Concrete quality bar** - Testable definition of "good enough"
+   - Bad: "Improve the plan"
+   - Good: "Tasks implementable without clarifying questions"
+
+3. **Termination strategy** - When does it stop?
+   - Fixed: Time-boxed exploration/discovery
+   - Judgment: Quality plateau (refinement, validation)
+   - Queue: External signal (work execution)
+
+The skill uses intelligence to infer prompt style from your description. It only asks questions when genuinely ambiguous.
 
 **When to proceed:** When you genuinely understand—not when you've asked N questions.
 
@@ -105,8 +127,9 @@ commands:
 # NOTE: "stages:" is deprecated but still works; prefer "nodes:"
 nodes:
   - id: stage-name
-    description: What this stage does
+    description: What this stage does (specific enough for loop-prompt-designer to infer style)
     exists: true | false
+    quality_bar: "Concrete, testable definition of 'good enough'"
     termination:
       type: queue | judgment | fixed
       min_iterations: N
@@ -212,6 +235,7 @@ Task(
 |-----------|---------|
 | references/v3-system.md | V3 template variables and formats |
 | references/termination.md | Termination strategy decision guide |
+| ../pipeline-creator/references/loop-prompt-patterns.md | **CRITICAL** - Loop type spectrum and prompt patterns |
 
 ## Workflows Index
 

@@ -1,9 +1,15 @@
 #!/bin/bash
 # Session initialization for Agent Pipelines
-# Checks for running/completed loops
+# Checks for running/completed loops and exposes plugin root
 
 PROJECT_PATH="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
+
+# CRITICAL: Expose plugin root to the agent
+# This line is parsed by the agent to locate plugin files
+if [ -n "$PLUGIN_ROOT" ]; then
+  echo "AGENT_PIPELINES_ROOT=$PLUGIN_ROOT"
+fi
 
 # Check for completed loops since last session
 COMPLETIONS_FILE="$PROJECT_PATH/.claude/loop-completions.json"
