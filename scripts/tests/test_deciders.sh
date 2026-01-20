@@ -37,6 +37,7 @@ test_decider_fixed_stops_at_max() {
 #-------------------------------------------------------------------------------
 
 test_decider_queue_empty_output_stops() {
+  export VALIDATE_COMMAND_TEST_MODE=1  # Bypass command validation for unit tests
   local result
   result=$(decider_queue "printf ''")
   local decision
@@ -45,6 +46,7 @@ test_decider_queue_empty_output_stops() {
 }
 
 test_decider_queue_nonempty_continues() {
+  export VALIDATE_COMMAND_TEST_MODE=1  # Bypass command validation for unit tests
   local result
   result=$(decider_queue "printf 'item\n'")
   local decision
@@ -53,6 +55,7 @@ test_decider_queue_nonempty_continues() {
 }
 
 test_decider_queue_handles_failure() {
+  export VALIDATE_COMMAND_TEST_MODE=1  # Bypass command validation for unit tests
   local result
   result=$(decider_queue "exit 1")
   local decision

@@ -9,6 +9,7 @@ DECIDERS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${LIB_DIR:-$DECIDERS_SCRIPT_DIR}"
 
 source "$LIB_DIR/events.sh"
+source "$LIB_DIR/validate.sh"
 
 decider_is_int() {
   [[ "$1" =~ ^[0-9]+$ ]]
@@ -110,6 +111,14 @@ decider_queue() {
     echo "Warning: queue termination missing command" >&2
     decider_result "continue" "queue_command_missing" "queue" \
       '{"error":"missing_command"}'
+    return 0
+  fi
+
+  # Validate command before execution (prevents injection attacks)
+  if ! validate_command "$command" 2>/dev/null; then
+    echo "Error: Queue command failed validation: $command" >&2
+    decider_result "continue" "queue_command_invalid" "queue" \
+      '{"error":"command_validation_failed"}'
     return 0
   fi
 

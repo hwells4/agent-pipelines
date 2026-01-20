@@ -38,6 +38,56 @@ validate_session_name() {
   return 0
 }
 
+# Validate a command for safe execution
+# Usage: validate_command "npm test" || exit 1
+# Returns: 0 if safe, 1 if dangerous
+# Set VALIDATE_COMMAND_TEST_MODE=1 to bypass (for unit tests)
+validate_command() {
+  local cmd=$1
+
+  # Test mode bypass (for unit tests that use shell commands like printf)
+  if [ "${VALIDATE_COMMAND_TEST_MODE:-}" = "1" ]; then
+    return 0
+  fi
+
+  # Check for empty
+  if [ -z "$cmd" ]; then
+    echo "Error: Command cannot be empty" >&2
+    return 1
+  fi
+
+  # Reject dangerous shell metacharacters that enable command chaining/injection
+  # Allowed: spaces, quotes, hyphens, equals, dots, slashes, underscores
+  # Rejected: ; | & $ ` < > ( ) { } \n
+  if [[ "$cmd" =~ [\;\|\&\$\`\<\>\(\)\{\}] ]] || [[ "$cmd" == *$'\n'* ]]; then
+    echo "Error: Command contains dangerous shell metacharacters" >&2
+    return 1
+  fi
+
+  # Extract first word (the command name)
+  local first_word
+  first_word=$(echo "$cmd" | awk '{print $1}')
+
+  # Allowlist of known safe commands
+  local allowed_commands="bd npm yarn pnpm pytest go cargo make rspec bundle rake ruby python python3 node bun deno jest vitest mocha gradle maven ant php phpunit dotnet nuget mix elixir iex swift xcodebuild flutter dart"
+
+  local found=false
+  for allowed in $allowed_commands; do
+    if [ "$first_word" = "$allowed" ]; then
+      found=true
+      break
+    fi
+  done
+
+  if [ "$found" = "false" ]; then
+    echo "Error: Command '$first_word' is not in the allowlist" >&2
+    echo "Allowed commands: $allowed_commands" >&2
+    return 1
+  fi
+
+  return 0
+}
+
 # Known template variables (including v3 variables: CTX, STATUS, CONTEXT)
 KNOWN_VARS="SESSION SESSION_NAME ITERATION INDEX PERSPECTIVE OUTPUT OUTPUT_PATH PROGRESS PROGRESS_FILE INPUTS CTX STATUS RESULT CONTEXT"
 
