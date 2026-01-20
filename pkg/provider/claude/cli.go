@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dodo-digital/agent-pipelines/internal/validate"
 	"github.com/dodo-digital/agent-pipelines/pkg/provider"
 )
 
@@ -21,11 +22,20 @@ const (
 	DefaultModel = "opus"
 )
 
+// SupportedModels lists the models supported by the Claude provider.
+var SupportedModels = []string{
+	"opus", "opus-4", "opus-4.5", "claude-opus",
+	"sonnet", "sonnet-4", "claude-sonnet",
+	"haiku", "claude-haiku",
+}
+
 // CLI invokes the Claude CLI as a provider implementation.
 type CLI struct {
 	Binary          string
 	Model           string
 	SkipPermissions bool
+
+	initialized bool
 }
 
 // Option configures the Claude CLI provider.
@@ -82,8 +92,68 @@ func (c *CLI) DefaultModel() string {
 	return DefaultModel
 }
 
-// Invoke executes the Claude CLI with the supplied prompt and model.
-func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result, error) {
+// Init initializes the Claude CLI provider.
+func (c *CLI) Init(ctx context.Context) error {
+	// Validate binary exists
+	binary := c.Binary
+	if binary == "" {
+		binary = DefaultBinary
+	}
+	if _, err := exec.LookPath(binary); err != nil {
+		return fmt.Errorf("claude binary not found: %w", err)
+	}
+	c.initialized = true
+	return nil
+}
+
+// Shutdown cleanly shuts down the provider.
+func (c *CLI) Shutdown(ctx context.Context) error {
+	c.initialized = false
+	return nil
+}
+
+// Validate checks if the provider is properly configured.
+func (c *CLI) Validate() error {
+	binary := c.Binary
+	if binary == "" {
+		binary = DefaultBinary
+	}
+	if err := validate.Binary(binary); err != nil {
+		return fmt.Errorf("invalid binary: %w", err)
+	}
+	if c.Model != "" {
+		if err := validate.Model(c.Model, SupportedModels); err != nil {
+			return fmt.Errorf("invalid model: %w", err)
+		}
+	}
+	return nil
+}
+
+// Capabilities returns the Claude provider's feature set.
+func (c *CLI) Capabilities() provider.Capabilities {
+	return provider.Capabilities{
+		Flags:           provider.CapabilityTools | provider.CapabilityVision,
+		SupportedModels: SupportedModels,
+		MaxPromptSize:   validate.DefaultMaxPromptSize,
+		MaxOutputSize:   1 * 1024 * 1024, // 1 MiB
+	}
+}
+
+// Execute runs the Claude CLI with the supplied prompt and model.
+func (c *CLI) Execute(ctx context.Context, req provider.Request) (provider.Result, error) {
+	// Validate request
+	if err := validate.Prompt(req.Prompt, 0); err != nil {
+		return provider.Result{}, fmt.Errorf("invalid prompt: %w", err)
+	}
+	if err := validate.Env(req.Env); err != nil {
+		return provider.Result{}, fmt.Errorf("invalid env: %w", err)
+	}
+	if req.WorkDir != "" {
+		if _, err := validate.WorkDir(req.WorkDir); err != nil {
+			return provider.Result{}, fmt.Errorf("invalid workdir: %w", err)
+		}
+	}
+
 	model := req.Model
 	if model == "" {
 		model = c.DefaultModel()
@@ -94,11 +164,8 @@ func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result
 	if binary == "" {
 		binary = DefaultBinary
 	}
-	if _, err := exec.LookPath(binary); err != nil {
-		return provider.Result{Model: model, ExitCode: -1}, fmt.Errorf("claude binary not found: %w", err)
-	}
 
-	args := []string{"--model", model}
+	args := []string{"--model", model, "--print"}
 	if c.SkipPermissions {
 		args = append(args, "--dangerously-skip-permissions")
 	}
@@ -112,16 +179,18 @@ func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result
 	}
 	cmd.Stdin = strings.NewReader(req.Prompt)
 
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
 	started := time.Now()
 	err := cmd.Run()
 	finished := time.Now()
 
 	result := provider.Result{
-		Output:     output.String(),
+		Output:     stdout.String(), // Legacy compatibility
+		Stdout:     stdout.String(),
+		Stderr:     stderr.String(),
 		ExitCode:   exitCode(err),
 		Model:      model,
 		StartedAt:  started,
@@ -129,12 +198,14 @@ func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result
 		Duration:   finished.Sub(started),
 	}
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return result, err
-		}
 		return result, err
 	}
 	return result, nil
+}
+
+// Invoke is deprecated. Use Execute instead.
+func (c *CLI) Invoke(ctx context.Context, req provider.Request) (provider.Result, error) {
+	return c.Execute(ctx, req)
 }
 
 func normalizeModel(model string) string {
