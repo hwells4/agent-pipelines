@@ -4,6 +4,12 @@ Read context from: ${CTX}
 Progress file: ${PROGRESS}
 Iteration: ${ITERATION}
 
+## Additional Instructions
+
+${CONTEXT}
+
+## Process
+
 First, read the progress file to see what previous iterations explored and found:
 ```bash
 cat ${PROGRESS}

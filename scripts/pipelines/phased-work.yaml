@@ -1,0 +1,38 @@
+# Phased Work Pipeline
+# Codex implements, Claude reviews and fixes bugs
+# Run once per phase with different bead labels
+
+name: phased-work
+description: Codex implements phase tasks, Claude discovers and fixes bugs
+
+nodes:
+  # Stage 1: Codex implements the phase tasks
+  - id: implement
+    stage: codex-work
+    runs: 25
+    # Uses beads labeled pipeline/{session} (e.g., pipeline/phase1)
+    # Codex terminates when done - no hanging
+
+  # Stage 2: Claude discovers bugs in new code (5 iterations)
+  - id: discover
+    stage: bug-discovery
+    runs: 5
+    inputs:
+      from: implement
+      select: latest
+
+  # Stage 3: Claude triages bugs and creates fix beads
+  - id: triage
+    stage: bug-triage
+    runs: 3
+    inputs:
+      from: discover
+      select: latest
+
+  # Stage 4: Claude fixes the bugs
+  - id: fix
+    stage: ralph
+    runs: 10
+    inputs:
+      from: triage
+      select: latest
