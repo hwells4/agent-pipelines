@@ -17,6 +17,9 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/lib"
 
+# Source validation early for security checks on user input
+source "$LIB_DIR/validate.sh"
+
 # Parse global flags early
 TMUX_FLAG="true"  # Default: run in tmux for persistent background execution
 INPUT_FILES=()
@@ -45,16 +48,41 @@ for i in $(seq 1 $#); do
 done
 set -- "${REMAINING_ARGS[@]}"
 
-# Export CLI inputs for pipeline engine
+# Export CLI inputs for pipeline engine (for foreground mode)
 if [ ${#INPUT_FILES[@]} -gt 0 ]; then
   export PIPELINE_CLI_INPUTS=$(printf '%s\n' "${INPUT_FILES[@]}" | jq -R . | jq -s .)
 fi
+
+# Build CLI flags string for passing to tmux (which doesn't inherit env vars)
+build_cli_flags() {
+  local flags=""
+  for f in "${INPUT_FILES[@]}"; do
+    flags="$flags --input=\"$f\""
+  done
+  if [ -n "${PIPELINE_CLI_CONTEXT:-}" ]; then
+    # Escape quotes and special chars for shell
+    local escaped_context="${PIPELINE_CLI_CONTEXT//\"/\\\"}"
+    flags="$flags --context=\"$escaped_context\""
+  fi
+  if [ -n "${PIPELINE_CLI_PROVIDER:-}" ]; then
+    flags="$flags --provider=$PIPELINE_CLI_PROVIDER"
+  fi
+  if [ -n "${PIPELINE_CLI_MODEL:-}" ]; then
+    flags="$flags --model=$PIPELINE_CLI_MODEL"
+  fi
+  echo "$flags"
+}
 
 # Helper: wrap command in tmux for persistent background execution
 run_in_tmux() {
   local session_name=$1
   shift
   local cmd="$*"
+
+  # Validate session name before any shell operations (prevents command injection)
+  if ! validate_session_name "$session_name"; then
+    exit 1
+  fi
 
   # Check if tmux session already exists
   if tmux has-session -t "pipeline-${session_name}" 2>/dev/null; then
@@ -281,7 +309,7 @@ case "$1" in
     shift
 
     if [ "$TMUX_FLAG" = "true" ]; then
-      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh pipeline --single-stage $STAGE_TYPE $@ $(build_cli_flags)"
       exit 0
     else
       exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
@@ -302,7 +330,7 @@ case "$1" in
     fi
 
     if [ "$TMUX_FLAG" = "true" ]; then
-      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "$PIPELINE_RUNS" "${@:4}"
+      run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh pipeline $PIPELINE_FILE $SESSION_NAME $PIPELINE_RUNS $(build_cli_flags)"
       exit 0
     else
       exec "$SCRIPT_DIR/engine.sh" pipeline "$PIPELINE_FILE" "$SESSION_NAME" "$PIPELINE_RUNS" "${@:4}"
@@ -323,7 +351,7 @@ case "$1" in
       shift
 
       if [ "$TMUX_FLAG" = "true" ]; then
-        run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"
+        run_in_tmux "$SESSION_NAME" "$SCRIPT_DIR/engine.sh pipeline --single-stage $STAGE_TYPE $@ $(build_cli_flags)"
         exit 0
       else
         exec "$SCRIPT_DIR/engine.sh" pipeline --single-stage "$STAGE_TYPE" "$@"

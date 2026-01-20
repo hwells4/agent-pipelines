@@ -2,6 +2,9 @@
 # Session Lock Management
 # Prevents concurrent sessions with the same name
 
+_LOCK_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_LOCK_LIB_DIR/validate.sh"
+
 LOCKS_DIR="${PROJECT_ROOT:-.}/.claude/locks"
 LOCK_FD=""
 LOCK_SESSION=""
@@ -387,7 +390,12 @@ cleanup_stale_locks() {
     if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
       echo "Removing stale lock: $session (PID $pid)" >&2
       rm -f "$lock_file"
-      cleanup_orphaned_beads "$session"
+      # Validate session from lock file before using in cleanup (prevents injection from malicious lock files)
+      if validate_session_name "$session" 2>/dev/null; then
+        cleanup_orphaned_beads "$session"
+      else
+        echo "Warning: Skipping orphan cleanup for invalid session name in stale lock" >&2
+      fi
     fi
   done
 }
