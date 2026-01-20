@@ -373,3 +373,28 @@ Shell suites follow the `scripts/tests/test_*.sh` pattern and rely on fixtures u
 ## Commit & Pull Request Guidelines
 
 Commits follow conventional prefixes seen in history (`feat:`, `docs:`, etc.) and should stay focused on one stage or helper tweak. Reference the bd issue ID in the commit body and PR description, summarize intent, list validation commands, and attach key CLI or tmux snippets for reviewer context. Call out every touched stage/pipeline so automation runners know which lint/test paths to rerun.
+
+## CAS - Coding Agent Session Search & Memory
+
+**Before starting work**, get relevant context from past sessions:
+```bash
+cm context "task description" --json
+```
+
+**Search past sessions**:
+```bash
+cass search "query" --json --limit 10
+```
+
+**Add learned rules** (categories: debugging, testing, architecture, workflow, documentation, integration, collaboration, git, security, performance):
+```bash
+cm playbook add "lesson learned" --category debugging
+```
+
+**List/search playbook rules**:
+```bash
+cm playbook list --json
+cm playbook search "keyword" --json
+```
+
+**Keep index fresh**: Run `cass index --json` after significant work sessions.
